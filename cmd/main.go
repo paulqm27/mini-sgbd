@@ -12,23 +12,38 @@ func main() {
 	}
 	defer sm.Close()
 
-	// Datos de prueba
-	data := []byte("Hola, esto es una prueba de pagina")
+	// Crear nueva página
+	page := storage.NewPage()
 
-	// Escribir en página 0
-	err = sm.WritePage(0, data)
+	// Insertar varios registros
+	page.InsertRecord([]byte("Registro 1"))
+	page.InsertRecord([]byte("Registro 2"))
+	page.InsertRecord([]byte("Registro 3"))
+	page.InsertRecord([]byte("Registro 4"))
+	page.InsertRecord([]byte("Registro 5"))
+
+	// Guardar en disco
+	err = sm.WritePageData(0, page)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Página escrita correctamente")
+	fmt.Println("✔ Página guardada en disco")
 
-	// Leer página 0
-	page, err := sm.ReadPage(0)
+	// Leer desde disco
+	loadedPage, err := sm.ReadPageData(0)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Contenido leído:")
-	fmt.Println(string(page[:len(data)]))
+	records := loadedPage.ReadRecords()
+
+	fmt.Println("\nRegistros leídos desde disco:")
+	for i, r := range records {
+		fmt.Printf("Record %d: %s\n", i+1, string(r))
+	}
+
+	fmt.Println("\nMetadata:")
+	fmt.Println("NumRecords:", loadedPage.GetNumRecords())
+	fmt.Println("FreeOffset:", loadedPage.GetFreeOffset())
 }
