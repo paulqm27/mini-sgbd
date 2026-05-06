@@ -4,106 +4,167 @@ import (
 	"encoding/binary"
 )
 
-const PageSize = 4096
+const TamañoPagina = 4096
 
-type Page struct {
-	Data []byte
+type Pagina struct {
+	Datos []byte
 }
 
-// Crear página siempre válida
-func NewPage() *Page {
-	p := &Page{
-		Data: make([]byte, PageSize),
+func NuevaPagina() *Pagina {
+
+	p := &Pagina{
+		Datos: make([]byte, TamañoPagina),
 	}
 
-	p.initHeader()
+	p.inicializarHeader()
+
 	return p
 }
 
-// Inicializa header seguro
-func (p *Page) initHeader() {
-	p.SetNumRecords(0)
-	p.SetFreeOffset(8)
+func (p *Pagina) inicializarHeader() {
+
+	p.EstablecerNumeroRegistros(0)
+	p.EstablecerPosicionLibre(8)
 }
 
-// -------- HEADER --------
+// ========================================
+// HEADER
+// ========================================
 
-func (p *Page) GetNumRecords() int {
-	if p.Data == nil {
+func (p *Pagina) ObtenerNumeroRegistros() int {
+
+	if p.Datos == nil {
 		return 0
 	}
-	return int(binary.LittleEndian.Uint32(p.Data[0:4]))
+
+	return int(binary.LittleEndian.Uint32(p.Datos[0:4]))
 }
 
-func (p *Page) SetNumRecords(n int) {
-	binary.LittleEndian.PutUint32(p.Data[0:4], uint32(n))
+// Actualiza la cantidad de registros.
+func (p *Pagina) EstablecerNumeroRegistros(n int) {
+
+	binary.LittleEndian.PutUint32(
+		p.Datos[0:4],
+		uint32(n),
+	)
 }
 
-func (p *Page) GetFreeOffset() int {
-	if p.Data == nil {
+// Devuelve la siguiente posición libre disponible.
+func (p *Pagina) ObtenerPosicionLibre() int {
+
+	if p.Datos == nil {
 		return 8
 	}
-	offset := int(binary.LittleEndian.Uint32(p.Data[4:8]))
-	if offset < 8 {
+
+	posicion := int(
+		binary.LittleEndian.Uint32(
+			p.Datos[4:8],
+		),
+	)
+
+	if posicion < 8 {
 		return 8
 	}
-	return offset
+
+	return posicion
 }
 
-func (p *Page) SetFreeOffset(offset int) {
-	binary.LittleEndian.PutUint32(p.Data[4:8], uint32(offset))
+// Actualiza la siguiente posición libre.
+func (p *Pagina) EstablecerPosicionLibre(posicion int) {
+
+	binary.LittleEndian.PutUint32(
+		p.Datos[4:8],
+		uint32(posicion),
+	)
 }
 
-// -------- INSERT --------
+// ========================================
+// INSERTAR REGISTRO
+// ========================================
 
-func (p *Page) InsertRecord(record []byte) bool {
-	if p.Data == nil {
+func (p *Pagina) InsertarRegistro(registro []byte) bool {
+
+	if p.Datos == nil {
 		return false
 	}
 
-	free := p.GetFreeOffset()
+	posicionLibre := p.ObtenerPosicionLibre()
 
-	if free+len(record)+4 > PageSize {
+	// Verificar espacio disponible
+	if posicionLibre+len(registro)+4 > TamañoPagina {
 		return false
 	}
 
-	binary.LittleEndian.PutUint32(p.Data[free:free+4], uint32(len(record)))
-	copy(p.Data[free+4:], record)
+	// Guardar tamaño del registro
+	binary.LittleEndian.PutUint32(
+		p.Datos[posicionLibre:posicionLibre+4],
+		uint32(len(registro)),
+	)
 
-	p.SetFreeOffset(free + 4 + len(record))
-	p.SetNumRecords(p.GetNumRecords() + 1)
+	// Guardar contenido del registro
+	copy(
+		p.Datos[posicionLibre+4:],
+		registro,
+	)
+
+	p.EstablecerPosicionLibre(
+		posicionLibre + 4 + len(registro),
+	)
+
+	p.EstablecerNumeroRegistros(
+		p.ObtenerNumeroRegistros() + 1,
+	)
 
 	return true
 }
 
-// -------- READ --------
+// ========================================
+// LEER REGISTROS
+// ========================================
 
-func (p *Page) ReadRecords() [][]byte {
-	if p.Data == nil {
+func (p *Pagina) LeerRegistros() [][]byte {
+
+	if p.Datos == nil {
 		return nil
 	}
 
-	var records [][]byte
-	offset := 8
+	var registros [][]byte
 
-	for i := 0; i < p.GetNumRecords(); i++ {
-		if offset+4 > len(p.Data) {
+	posicion := 8
+
+	for i := 0; i < p.ObtenerNumeroRegistros(); i++ {
+
+		// Verificar lectura segura
+		if posicion+4 > len(p.Datos) {
 			break
 		}
 
-		size := int(binary.LittleEndian.Uint32(p.Data[offset : offset+4]))
-		offset += 4
+		// Leer tamaño del registro
+		tamaño := int(
+			binary.LittleEndian.Uint32(
+				p.Datos[posicion : posicion+4],
+			),
+		)
 
-		if offset+size > len(p.Data) {
+		posicion += 4
+
+		// Verificar límites
+		if posicion+tamaño > len(p.Datos) {
 			break
 		}
 
-		rec := make([]byte, size)
-		copy(rec, p.Data[offset:offset+size])
-		offset += size
+		// Copiar registro
+		registro := make([]byte, tamaño)
 
-		records = append(records, rec)
+		copy(
+			registro,
+			p.Datos[posicion:posicion+tamaño],
+		)
+
+		posicion += tamaño
+
+		registros = append(registros, registro)
 	}
 
-	return records
+	return registros
 }

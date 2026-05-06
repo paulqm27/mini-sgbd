@@ -2,97 +2,154 @@ package buffer
 
 import "mini-sgbd/internal/storage"
 
+// Frame -> página cargada en memoria RAM
 type Frame struct {
-	PageID   int
-	Page     *storage.Page
+	IDPagina int
+	Pagina   *storage.Pagina
 	PinCount int
 	Dirty    bool
 }
 
+// Administra estas paginas
 type BufferManager struct {
-	capacity int
-	frames   map[int]*Frame
-	order    []int
-	storage  *storage.StorageManager
+	capacidad int
+	frames    map[int]*Frame
+	ordenLRU  []int
+	storage   *storage.GestorStorage
 }
 
-func NewBufferManager(capacity int, sm *storage.StorageManager) *BufferManager {
+// Nuevo Buffer Pool.
+func NuevoBufferManager(
+	capacidad int,
+	gestorStorage *storage.GestorStorage,
+) *BufferManager {
+
 	return &BufferManager{
-		capacity: capacity,
-		frames:   make(map[int]*Frame),
-		order:    []int{},
-		storage:  sm,
+		capacidad: capacidad,
+		frames:    make(map[int]*Frame),
+		ordenLRU:  []int{},
+		storage:   gestorStorage,
 	}
 }
 
-func (bm *BufferManager) touch(id int) {
-	for i, v := range bm.order {
-		if v == id {
-			bm.order = append(bm.order[:i], bm.order[i+1:]...)
+// actualizarLRU mueve la página utilizada al final de la lista LRU.
+func (bm *BufferManager) actualizarLRU(idPagina int) {
+
+	for i, valor := range bm.ordenLRU {
+
+		if valor == idPagina {
+
+			bm.ordenLRU = append(
+				bm.ordenLRU[:i],
+				bm.ordenLRU[i+1:]...,
+			)
+
 			break
 		}
 	}
-	bm.order = append(bm.order, id)
+
+	bm.ordenLRU = append(
+		bm.ordenLRU,
+		idPagina,
+	)
 }
 
-func (bm *BufferManager) evict() {
-	for _, id := range bm.order {
-		frame := bm.frames[id]
+// reemplazarPagina elimina una página usando la política LRU.
+func (bm *BufferManager) reemplazarPagina() {
 
+	for _, idPagina := range bm.ordenLRU {
+
+		frame := bm.frames[idPagina]
+
+		// Solo puede eliminarse si no está siendo usada
 		if frame.PinCount == 0 {
+
+			// Si la página fue modificada,
+			// se escribe nuevamente a disco
 			if frame.Dirty {
-				bm.storage.WritePageData(id, frame.Page)
+
+				bm.storage.EscribirDatosPagina(
+					idPagina,
+					frame.Pagina,
+				)
 			}
-			delete(bm.frames, id)
-			bm.order = bm.order[1:]
+
+			delete(bm.frames, idPagina)
+
+			bm.ordenLRU = bm.ordenLRU[1:]
+
 			return
 		}
 	}
 }
 
-func (bm *BufferManager) FetchPage(pageID int) *Frame {
+// Recuperar una página desde memoria
+func (bm *BufferManager) ObtenerPagina(
+	idPagina int,
+) *Frame {
 
-	if frame, ok := bm.frames[pageID]; ok {
+	if frame, existe := bm.frames[idPagina]; existe {
+
 		frame.PinCount++
-		bm.touch(pageID)
+
+		bm.actualizarLRU(idPagina)
+
 		return frame
 	}
 
-	if len(bm.frames) >= bm.capacity {
-		bm.evict()
+	// Si buffer lleno, se aplica reemplazo LRU
+	if len(bm.frames) >= bm.capacidad {
+
+		bm.reemplazarPagina()
 	}
 
-	page, _ := bm.storage.ReadPageData(pageID)
+	pagina, _ := bm.storage.LeerDatosPagina(idPagina)
 
-	if page == nil {
-		page = storage.NewPage()
+	if pagina == nil {
+
+		pagina = storage.NuevaPagina()
 	}
 
 	frame := &Frame{
-		PageID:   pageID,
-		Page:     page,
+		IDPagina: idPagina,
+		Pagina:   pagina,
 		PinCount: 1,
 	}
 
-	bm.frames[pageID] = frame
-	bm.touch(pageID)
+	bm.frames[idPagina] = frame
+
+	bm.actualizarLRU(idPagina)
 
 	return frame
 }
 
-func (bm *BufferManager) UnpinPage(pageID int, dirty bool) {
-	if frame, ok := bm.frames[pageID]; ok {
+// Reduce el contador PinCount, marca la página como dirty si fue modificada
+func (bm *BufferManager) LiberarPagina(
+	idPagina int,
+	dirty bool,
+) {
+
+	if frame, existe := bm.frames[idPagina]; existe {
+
 		frame.PinCount--
+
 		if dirty {
 			frame.Dirty = true
 		}
 	}
 }
 
+// Escribe todas las páginas dirty nuevamente a disco.
 func (bm *BufferManager) Flush() {
-	for id, frame := range bm.frames {
+
+	for idPagina, frame := range bm.frames {
+
 		if frame.Dirty {
-			bm.storage.WritePageData(id, frame.Page)
+
+			bm.storage.EscribirDatosPagina(
+				idPagina,
+				frame.Pagina,
+			)
 		}
 	}
 }

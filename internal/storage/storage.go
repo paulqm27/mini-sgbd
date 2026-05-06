@@ -6,62 +6,100 @@ import (
 	"os"
 )
 
-type StorageManager struct {
-	file *os.File
+// GestorStorage administra el acceso al archivo binario.
+type GestorStorage struct {
+	archivo *os.File
 }
 
-func NewStorageManager(filename string) (*StorageManager, error) {
-	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
+// NuevoGestorStorage abre o crea el archivo de base de datos.
+func NuevoGestorStorage(nombreArchivo string) (*GestorStorage, error) {
+
+	archivo, err := os.OpenFile(
+		nombreArchivo,
+		os.O_RDWR|os.O_CREATE,
+		0666,
+	)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &StorageManager{file: file}, nil
+	return &GestorStorage{
+		archivo: archivo,
+	}, nil
 }
 
-// escritura segura
-func (sm *StorageManager) WritePage(pageID int, data []byte) error {
-	offset := int64(pageID * PageSize)
+func (gs *GestorStorage) EscribirPagina(
+	idPagina int,
+	datos []byte,
+) error {
 
-	_, err := sm.file.WriteAt(data, offset)
+	posicion := int64(idPagina * TamañoPagina)
+
+	_, err := gs.archivo.WriteAt(
+		datos,
+		posicion,
+	)
+
 	return err
 }
 
-// lectura segura
-func (sm *StorageManager) ReadPage(pageID int) ([]byte, error) {
-	offset := int64(pageID * PageSize)
+func (gs *GestorStorage) LeerPagina(
+	idPagina int,
+) ([]byte, error) {
 
-	page := make([]byte, PageSize)
+	posicion := int64(idPagina * TamañoPagina)
 
-	_, err := sm.file.ReadAt(page, offset)
+	pagina := make([]byte, TamañoPagina)
+
+	_, err := gs.archivo.ReadAt(
+		pagina,
+		posicion,
+	)
+
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
 
-	return page, nil
+	return pagina, nil
 }
 
-// wrapper seguro
-func (sm *StorageManager) WritePageData(pageID int, page *Page) error {
-	if page == nil {
-		return fmt.Errorf("page is nil")
+// Guarda un objeto Pagina completo.
+func (gs *GestorStorage) EscribirDatosPagina(
+	idPagina int,
+	pagina *Pagina,
+) error {
+
+	if pagina == nil {
+		return fmt.Errorf("la página es nil")
 	}
-	return sm.WritePage(pageID, page.Data)
+
+	return gs.EscribirPagina(
+		idPagina,
+		pagina.Datos,
+	)
 }
 
-func (sm *StorageManager) ReadPageData(pageID int) (*Page, error) {
-	data, err := sm.ReadPage(pageID)
+// Recupera una página completa.
+func (gs *GestorStorage) LeerDatosPagina(
+	idPagina int,
+) (*Pagina, error) {
+
+	datos, err := gs.LeerPagina(idPagina)
+
 	if err != nil {
 		return nil, err
 	}
 
-	if data == nil {
-		return NewPage(), nil
+	if datos == nil {
+		return NuevaPagina(), nil
 	}
 
-	return &Page{Data: data}, nil
+	return &Pagina{
+		Datos: datos,
+	}, nil
 }
 
-func (sm *StorageManager) Close() {
-	sm.file.Close()
+func (gs *GestorStorage) Cerrar() {
+	gs.archivo.Close()
 }
