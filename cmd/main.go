@@ -27,15 +27,12 @@ func main() {
 
 	defer gestorStorage.Cerrar()
 
-	// Crear una nueva página
 	pagina := storage.NuevaPagina()
 
-	// Insertar registros
 	pagina.InsertarRegistro([]byte("Juan"))
 	pagina.InsertarRegistro([]byte("Pedro"))
 	pagina.InsertarRegistro([]byte("Maria"))
 
-	// Guardar página en disco
 	err = gestorStorage.EscribirDatosPagina(
 		0,
 		pagina,
@@ -45,9 +42,8 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println("✔ Página guardada correctamente en disco")
+	fmt.Println("Página guardada correctamente en disco")
 
-	// Leer nuevamente desde disco
 	paginaLeida, err := gestorStorage.LeerDatosPagina(0)
 
 	if err != nil {
@@ -69,8 +65,6 @@ func main() {
 	fmt.Println("\n===== SEMANA 3 =====")
 	fmt.Println("Buffer Manager con política LRU")
 
-	// Crear Buffer Manager
-	// Capacidad máxima: 2 páginas
 	bufferManager := buffer.NuevoBufferManager(
 		2,
 		gestorStorage,
@@ -93,7 +87,7 @@ func main() {
 	// Liberar página y marcarla como dirty
 	bufferManager.LiberarPagina(0, true)
 
-	fmt.Println("✔ Página 0 cargada en buffer")
+	fmt.Println("Página 0 cargada en buffer")
 
 	// ========================================
 	// Página 1
@@ -107,7 +101,7 @@ func main() {
 
 	bufferManager.LiberarPagina(1, true)
 
-	fmt.Println("✔ Página 1 cargada en buffer")
+	fmt.Println("Página 1 cargada en buffer")
 
 	// ========================================
 	// Página 2
@@ -122,13 +116,12 @@ func main() {
 
 	bufferManager.LiberarPagina(2, true)
 
-	fmt.Println("✔ Página 2 cargada")
-	fmt.Println("✔ Política LRU ejecutada")
+	fmt.Println("Página 2 cargada")
+	fmt.Println("Política LRU ejecutada")
 
-	// Guardar páginas dirty nuevamente a disco
 	bufferManager.Flush()
 
-	fmt.Println("✔ Buffer Manager finalizado")
+	fmt.Println("Buffer Manager finalizado")
 
 	// ========================================
 	// VERIFICACIÓN FINAL

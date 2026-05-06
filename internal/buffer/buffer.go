@@ -54,7 +54,7 @@ func (bm *BufferManager) actualizarLRU(idPagina int) {
 	)
 }
 
-// reemplazarPagina elimina una página usando la política LRU.
+// Elimina una página usando la política LRU.
 func (bm *BufferManager) reemplazarPagina() {
 
 	for _, idPagina := range bm.ordenLRU {
@@ -64,8 +64,6 @@ func (bm *BufferManager) reemplazarPagina() {
 		// Solo puede eliminarse si no está siendo usada
 		if frame.PinCount == 0 {
 
-			// Si la página fue modificada,
-			// se escribe nuevamente a disco
 			if frame.Dirty {
 
 				bm.storage.EscribirDatosPagina(
