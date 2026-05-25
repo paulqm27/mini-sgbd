@@ -5,145 +5,191 @@
 #include "storage/storage.h"
 #include "buffer/buffer.h"
 
+using namespace std;
+
 int main() {
 
-    // ========================================
-    // SEMANA 2 & 3
-    // Persistencia basica en archivos binarios
-    // ========================================
+    // =========================================================
+    // SEMANA 4
+    // Insercion y recuperacion de registros por slots
+    // =========================================================
 
-    std::cout << "===== SEMANA 2 & 3 =====" << std::endl;
-    std::cout << "Persistencia basica en disco" << std::endl;
-
-    storage::StorageManager gestorStorage("../data/database.db");
+    cout << "===== SEMANA 4 =====" << endl;
+    cout << "Insercion y recuperacion de registros" << endl;
 
     storage::Page pagina;
 
-    std::string r1 = "Juan";
-    std::string r2 = "Pedro";
-    std::string r3 = "Maria";
+    string alumno1 = "Alumno: Carlos";
+    string alumno2 = "Alumno: Ana";
+    string alumno3 = "Alumno: Diego";
 
-    pagina.InsertRecord(std::vector<uint8_t>(r1.begin(), r1.end()));
-    pagina.InsertRecord(std::vector<uint8_t>(r2.begin(), r2.end()));
-    pagina.InsertRecord(std::vector<uint8_t>(r3.begin(), r3.end()));
+    pagina.InsertRecord(vector<uint8_t>(alumno1.begin(), alumno1.end()));
+    pagina.InsertRecord(vector<uint8_t>(alumno2.begin(), alumno2.end()));
+    pagina.InsertRecord(vector<uint8_t>(alumno3.begin(), alumno3.end()));
 
-    if (!gestorStorage.WritePageData(0, pagina)) {
+    cout << "\nRegistros insertados en la pagina:" << endl;
 
-        std::cerr << "Error al escribir la pagina en disco" << std::endl;
+    for (const auto& registro : pagina.ReadAllRecords()) {
+
+        string texto(registro.begin(), registro.end());
+
+        cout << "- " << texto << endl;
+    }
+
+    // =========================================================
+    // SEMANA 5
+    // Storage Manager - Persistencia en disco
+    // =========================================================
+
+    cout << "\n===== SEMANA 5 =====" << endl;
+    cout << "Storage Manager - Escritura y lectura en disco" << endl;
+
+    storage::StorageManager storageManager("../data/database.db");
+
+    // Guardar pagina en disco
+    if (!storageManager.WritePageData(0, pagina)) {
+
+        cerr << "Error al guardar pagina en disco" << endl;
         return 1;
     }
 
-    std::cout << "Pagina guardada correctamente en disco" << std::endl;
+    cout << "Pagina 0 guardada correctamente en disco" << endl;
 
-    auto paginaLeida = gestorStorage.ReadPageData(0);
+    // Leer pagina desde disco
+    auto paginaRecuperada = storageManager.ReadPageData(0);
 
-    if (!paginaLeida) {
+    if (!paginaRecuperada) {
 
-        std::cerr << "Error al leer la pagina desde disco" << std::endl;
+        cerr << "Error al recuperar pagina desde disco" << endl;
         return 1;
     }
 
-    std::cout << "\nRegistros recuperados desde disco:" << std::endl;
+    cout << "\nContenido recuperado desde disco:" << endl;
 
-    for (const auto& registro : paginaLeida->ReadAllRecords()) {
+    for (const auto& registro : paginaRecuperada->ReadAllRecords()) {
 
-        std::string s(registro.begin(), registro.end());
+        string texto(registro.begin(), registro.end());
 
-        std::cout << "- " << s << std::endl;
+        cout << "- " << texto << endl;
     }
 
-    // ========================================
+    // =========================================================
     // SEMANA 6
     // Buffer Manager + Politica LRU
-    // ========================================
+    // =========================================================
 
-    std::cout << "\n===== SEMANA 6 =====" << std::endl;
-    std::cout << "Buffer Manager con politica LRU" << std::endl;
+    cout << "\n===== SEMANA 6 =====" << endl;
+    cout << "Buffer Manager con politica de reemplazo LRU" << endl;
 
-    buffer::BufferManager bufferManager(2, &gestorStorage);
+    // Buffer con capacidad maxima de 2 paginas
+    buffer::BufferManager bufferManager(2, &storageManager);
 
-    // ========================================
-    // PAGINA 0
-    // ========================================
+    // =========================================================
+    // CARGA DE PAGINA 0
+    // =========================================================
 
-    auto frame1 = bufferManager.GetPage(0);
+    cout << "\n[1] Solicitando pagina 0..." << endl;
 
-    std::string sr1 = "S6 - Registro A";
-    std::string sr2 = "S6 - Registro B";
+    auto frame0 = bufferManager.GetPage(0);
 
-    frame1->page->InsertRecord(std::vector<uint8_t>(sr1.begin(), sr1.end()));
-    frame1->page->InsertRecord(std::vector<uint8_t>(sr2.begin(), sr2.end()));
+    cout << "Pagina 0 cargada en memoria RAM" << endl;
+
+    string curso1 = "Base de Datos";
+
+    frame0->page->InsertRecord(
+        vector<uint8_t>(curso1.begin(), curso1.end())
+    );
 
     bufferManager.ReleasePage(0, true);
 
-    std::cout << "Pagina 0 cargada en buffer" << std::endl;
+    cout << "Pagina 0 liberada y marcada como dirty" << endl;
 
-    // ========================================
-    // PAGINA 1
-    // ========================================
+    // =========================================================
+    // CARGA DE PAGINA 1
+    // =========================================================
 
-    auto frame2 = bufferManager.GetPage(1);
+    cout << "\n[2] Solicitando pagina 1..." << endl;
 
-    std::string sr3 = "Pagina 1 - Dato X";
+    auto frame1 = bufferManager.GetPage(1);
 
-    frame2->page->InsertRecord(std::vector<uint8_t>(sr3.begin(), sr3.end()));
+    cout << "Pagina 1 cargada en memoria RAM" << endl;
+
+    string curso2 = "Sistemas Operativos";
+
+    frame1->page->InsertRecord(
+        vector<uint8_t>(curso2.begin(), curso2.end())
+    );
 
     bufferManager.ReleasePage(1, true);
 
-    std::cout << "Pagina 1 cargada en buffer" << std::endl;
+    cout << "Pagina 1 liberada y marcada como dirty" << endl;
 
-    // ========================================
-    // PAGINA 2
-    // Fuerza politica LRU
-    // ========================================
+    // =========================================================
+    // CARGA DE PAGINA 2
+    // AQUI SE EJECUTA LRU
+    // =========================================================
 
-    auto frame3 = bufferManager.GetPage(2);
+    cout << "\n[3] Solicitando pagina 2..." << endl;
 
-    std::string sr4 = "Pagina 2 - LRU";
+    cout << "El buffer esta lleno" << endl;
+    cout << "Se ejecuta la politica LRU..." << endl;
 
-    frame3->page->InsertRecord(std::vector<uint8_t>(sr4.begin(), sr4.end()));
+    auto frame2 = bufferManager.GetPage(2);
+
+    cout << "La pagina menos recientemente usada fue reemplazada"
+         << endl;
+
+    string curso3 = "Arquitectura de Computadoras";
+
+    frame2->page->InsertRecord(
+        vector<uint8_t>(curso3.begin(), curso3.end())
+    );
 
     bufferManager.ReleasePage(2, true);
 
-    std::cout << "Pagina 2 cargada" << std::endl;
-    std::cout << "Politica LRU ejecutada" << std::endl;
+    cout << "Pagina 2 cargada correctamente" << endl;
 
-    // Flush manual
+    // =========================================================
+    // FLUSH FINAL
+    // =========================================================
+
+    cout << "\nGuardando cambios pendientes en disco..." << endl;
+
     bufferManager.Flush();
 
-    std::cout << "Buffer Manager finalizado" << std::endl;
+    cout << "Flush ejecutado correctamente" << endl;
 
-    // ========================================
+    // =========================================================
     // VERIFICACION FINAL
-    // ========================================
+    // =========================================================
 
-    std::cout << "\n===== VERIFICACION =====" << std::endl;
+    cout << "\n===== VERIFICACION FINAL =====" << endl;
 
     for (int i = 0; i < 3; i++) {
 
-        auto p = gestorStorage.ReadPageData(i);
+        auto paginaFinal = storageManager.ReadPageData(i);
 
-        std::cout << "\nPagina " << i << std::endl;
+        cout << "\nPagina " << i << ":" << endl;
 
-        if (p) {
+        if (paginaFinal) {
 
-            auto registros = p->ReadAllRecords();
+            auto registros = paginaFinal->ReadAllRecords();
 
             if (registros.empty()) {
 
-                std::cout << "(Sin registros)" << std::endl;
+                cout << "(Sin registros)" << endl;
             }
 
             for (const auto& registro : registros) {
 
-                std::string s(registro.begin(), registro.end());
+                string texto(registro.begin(), registro.end());
 
-                std::cout << "- " << s << std::endl;
+                cout << "- " << texto << endl;
             }
         }
     }
 
-    std::cout << "\nEjecucion finalizada correctamente." << std::endl;
+    cout << "\nEjecucion finalizada correctamente." << endl;
 
     return 0;
 }
