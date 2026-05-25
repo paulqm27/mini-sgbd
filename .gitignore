@@ -1,32 +1,74 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# ========================================
+# Ejecutables y binarios
+# ========================================
+
 *.exe
-*.exe~
+*.out
+*.o
+*.obj
+*.a
+*.lib
 *.dll
 *.so
 *.dylib
 
-# Test binary, built with `go test -c`
-*.test
+# ========================================
+# Carpetas de compilacion
+# ========================================
 
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
+build/
+cmake-build-debug/
+cmake-build-release/
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# ========================================
+# Archivos generados por CMake
+# ========================================
 
-# Go workspace file
-go.work
-go.work.sum
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+CTestTestfile.cmake
 
-# env file
+# ========================================
+# Base de datos y archivos binarios
+# ========================================
+
+*.db
+*.bin
+
+# ========================================
+# Logs y temporales
+# ========================================
+
+*.log
+*.tmp
+*.temp
+
+# ========================================
+# Coverage / testing
+# ========================================
+
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# ========================================
+# VSCode
+# ========================================
+
+.vscode/
+
+# ========================================
+# CLion
+# ========================================
+
+.idea/
+
+# ========================================
+# Variables de entorno
+# ========================================
+
 .env
-
-# Editor/IDE
-# .idea/
-# .vscode/

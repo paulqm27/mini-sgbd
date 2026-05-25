@@ -7,22 +7,23 @@
 
 namespace storage {
 
-class StorageManager {
-public:
-    explicit StorageManager(const std::string& filename);
-    ~StorageManager();
+    class StorageManager {
 
-    bool WritePage(int pageId, const std::vector<uint8_t>& data);
-    std::vector<uint8_t> ReadPage(int pageId);
+    public:
+        explicit StorageManager(const std::string& filename);
+        ~StorageManager();
 
-    bool WritePageData(int pageId, const Page& page);
-    std::unique_ptr<Page> ReadPageData(int pageId);
+        bool WritePage(int pageId, const std::vector<uint8_t>& data);
+        std::vector<uint8_t> ReadPage(int pageId);
 
-    void Close();
+        bool WritePageData(int pageId, const Page& page);
+        std::unique_ptr<Page> ReadPageData(int pageId);
 
-private:
-    std::string filename_;
-    std::fstream file_;
-};
+        void Close();
 
-} // namespace storage
+    private:
+        std::string filename_;
+        std::fstream file_;
+    };
+
+}
