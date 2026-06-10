@@ -139,4 +139,16 @@ namespace storage {
     Page::GetData() const {
         return data_;
     }
+
+    void Page::ReadRaw(size_t offset, void* dest, size_t size) const {
+        if (offset + size <= PAGE_SIZE && dest != nullptr) {
+            std::memcpy(dest, data_.data() + offset, size);
+        }
+    }
+
+    void Page::WriteRaw(size_t offset, const void* src, size_t size) {
+        if (offset + size <= PAGE_SIZE && src != nullptr) {
+            std::memcpy(data_.data() + offset, src, size);
+        }
+    }
 }

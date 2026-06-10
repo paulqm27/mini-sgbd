@@ -12,6 +12,7 @@ set(SOURCES
     src/storage/page.cpp
     src/storage/storage.cpp
     src/buffer/buffer.cpp
+    src/index/bplus_tree.cpp
 )
 
 # Main executable

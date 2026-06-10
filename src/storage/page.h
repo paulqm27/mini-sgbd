@@ -22,6 +22,8 @@ namespace storage {
         std::vector<std::vector<uint8_t>> ReadAllRecords() const;
         int GetNumSlots() const;
         const std::vector<uint8_t>& GetData() const;
+        void ReadRaw(size_t offset, void* dest, size_t size) const;
+        void WriteRaw(size_t offset, const void* src, size_t size);
 
     private:
         std::vector<uint8_t> data_;

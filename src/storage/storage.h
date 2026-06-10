@@ -20,10 +20,12 @@ namespace storage {
         std::unique_ptr<Page> ReadPageData(int pageId);
 
         void Close();
+        int GetNumPages();
 
     private:
         std::string filename_;
         std::fstream file_;
+        int numPages_ = 0;
     };
 
 }

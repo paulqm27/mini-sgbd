@@ -26,12 +26,31 @@ namespace buffer {
         void ReleasePage(int pageId, bool dirty);
         void Flush();
 
+        // Estadísticas y visualización
+        int GetAccessCount() const { return numAccesses_; }
+        int GetHitCount() const { return numHits_; }
+        int GetMissCount() const { return numMisses_; }
+        double GetHitRate() const {
+            if (numAccesses_ == 0) return 0.0;
+            return static_cast<double>(numHits_) / numAccesses_;
+        }
+        void ResetStats() {
+            numAccesses_ = 0;
+            numHits_ = 0;
+            numMisses_ = 0;
+        }
+        void PrintStatus() const;
+
     private:
         int capacity_;
         storage::StorageManager* storageManager_;
         std::unordered_map<int, std::unique_ptr<Frame>> frames_;
         std::list<int> lruList_;
         void UpdateLRU(int pageId);
-        void ReplacePage();
+        bool ReplacePage();
+
+        int numAccesses_ = 0;
+        int numHits_ = 0;
+        int numMisses_ = 0;
     };
 }

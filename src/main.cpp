@@ -1,195 +1,256 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <chrono>
+#include <iomanip>
+#include <algorithm>
+#include <memory>
 
 #include "storage/storage.h"
 #include "buffer/buffer.h"
+#include "index/bplus_tree.h"
 
 using namespace std;
+using namespace storage;
+using namespace buffer;
+using namespace index_m;
+
+// Helper struct for table records insertion
+struct TableRID {
+    int32_t pageId;
+    int32_t slotId;
+};
+
+// Función para insertar registros de datos usando el Buffer Manager
+TableRID InsertRecordToTable(BufferManager& bm, const string& recordStr, int& currentDataPageId) {
+    vector<uint8_t> record(recordStr.begin(), recordStr.end());
+    Frame* frame = bm.GetPage(currentDataPageId);
+
+    // Si la página actual no tiene espacio, pasamos a la siguiente
+    if (!frame->page->InsertRecord(record)) {
+        bm.ReleasePage(currentDataPageId, false); // Liberar sin marcar dirty ya que falló
+        currentDataPageId++;
+        frame = bm.GetPage(currentDataPageId);
+        frame->page->InsertRecord(record);
+    }
+
+    TableRID rid;
+    rid.pageId = currentDataPageId;
+    rid.slotId = frame->page->GetNumSlots() - 1;
+
+    // Liberamos marcando dirty para que se guarde en disco
+    bm.ReleasePage(currentDataPageId, true);
+    return rid;
+}
 
 int main() {
+    auto start_time = chrono::high_resolution_clock::now();
 
-    // =========================================================
-    // SEMANA 4
-    // Insercion y recuperacion de registros por slots
-    // =========================================================
+    cout << "=====================================================================" << endl;
+    cout << "          DEMOSTRACION COMPLETA DEL MINI SGBD - SEMANA 10            " << endl;
+    cout << "=====================================================================" << endl;
 
-    cout << "===== SEMANA 4 =====" << endl;
-    cout << "Insercion y recuperacion de registros" << endl;
+    // =====================================================================
+    // A. Inicialización
+    // =====================================================================
+    cout << "\n[A] INICIALIZANDO COMPONENTES..." << endl;
 
-    storage::Page pagina;
+    string dbFilename = "../data/database.db";
+    // Limpiar base de datos previa para la demo
+    remove(dbFilename.c_str());
 
-    string alumno1 = "Alumno: Carlos";
-    string alumno2 = "Alumno: Ana";
-    string alumno3 = "Alumno: Diego";
+    cout << "  - Creando Storage Manager (Archivo: " << dbFilename << ")..." << endl;
+    StorageManager storageManager(dbFilename);
 
-    pagina.InsertRecord(vector<uint8_t>(alumno1.begin(), alumno1.end()));
-    pagina.InsertRecord(vector<uint8_t>(alumno2.begin(), alumno2.end()));
-    pagina.InsertRecord(vector<uint8_t>(alumno3.begin(), alumno3.end()));
+    // Buffer Pool con capacidad de 20 páginas.
+    // Nota: con maxKeys=3 el árbol puede alcanzar ~4 niveles con 100 registros,
+    // por lo que necesitamos capacidad suficiente para mantener el camino raíz-hoja
+    // más las páginas de splits sin evictar nodos en medio de una inserción.
+    // La demo de LRU (sección E) usará una función auxiliar con un pool pequeño.
+    int bufferCapacity = 20;
+    cout << "  - Creando Buffer Manager (Capacidad: " << bufferCapacity << " paginas)..." << endl;
+    BufferManager bufferManager(bufferCapacity, &storageManager);
 
-    cout << "\nRegistros insertados en la pagina:" << endl;
+    // B+ Tree con maxKeys = 3 (tanto para hojas como para internos)
+    // Esto asegura múltiples niveles y divisiones (splits) con 100 registros.
+    int maxKeysLeaf = 3;
+    int maxKeysInternal = 3;
+    cout << "  - Creando B+ Tree (Orden: max_keys_leaf=" << maxKeysLeaf
+         << ", max_keys_internal=" << maxKeysInternal << ")..." << endl;
+    BPlusTree bplusTree(&bufferManager, &storageManager, maxKeysLeaf, maxKeysInternal);
 
-    for (const auto& registro : pagina.ReadAllRecords()) {
+    // =====================================================================
+    // B. Inserción de datos de prueba
+    // =====================================================================
+    cout << "\n[B] GENERANDO E INSERTANDO REGISTROS DE PRUEBA..." << endl;
+    cout << "  - Generando 100 registros de alumnos..." << endl;
 
-        string texto(registro.begin(), registro.end());
+    int currentDataPageId = 0;
+    vector<pair<int, index_m::RID>> indexedRecords;
 
-        cout << "- " << texto << endl;
+    // Generamos claves del 1 al 100
+    vector<int> keys;
+    for (int i = 1; i <= 100; ++i) {
+        keys.push_back(i);
     }
 
-    // =========================================================
-    // SEMANA 5
-    // Storage Manager - Persistencia en disco
-    // =========================================================
-
-    cout << "\n===== SEMANA 5 =====" << endl;
-    cout << "Storage Manager - Escritura y lectura en disco" << endl;
-
-    storage::StorageManager storageManager("../data/database.db");
-
-    // Guardar pagina en disco
-    if (!storageManager.WritePageData(0, pagina)) {
-
-        cerr << "Error al guardar pagina en disco" << endl;
-        return 1;
+    // Barajamos las claves de forma determinista para la demo
+    // Esto demostrará la flexibilidad de inserción aleatoria y balanceo del árbol
+    for (size_t i = 0; i < keys.size(); ++i) {
+        size_t j = (i * 31 + 7) % keys.size();
+        swap(keys[i], keys[j]);
     }
 
-    cout << "Pagina 0 guardada correctamente en disco" << endl;
+    // Insertar registros en disco
+    for (int key : keys) {
+        string recordData = "AlumnoID: " + to_string(key) + ", Codigo: 2026-" + to_string(100000 + key) + ", Nota: " + to_string(10 + (key % 11));
+        TableRID trid = InsertRecordToTable(bufferManager, recordData, currentDataPageId);
 
-    // Leer pagina desde disco
-    auto paginaRecuperada = storageManager.ReadPageData(0);
+        index_m::RID irid;
+        irid.pageId = trid.pageId;
+        irid.slotId = trid.slotId;
 
-    if (!paginaRecuperada) {
-
-        cerr << "Error al recuperar pagina desde disco" << endl;
-        return 1;
+        indexedRecords.push_back({key, irid});
     }
 
-    cout << "\nContenido recuperado desde disco:" << endl;
+    cout << "  - Insercion finalizada. Registros almacenados en las paginas 0 a " << currentDataPageId << "." << endl;
+    cout << "  - Se grabaron " << keys.size() << " registros con exito." << endl;
 
-    for (const auto& registro : paginaRecuperada->ReadAllRecords()) {
-
-        string texto(registro.begin(), registro.end());
-
-        cout << "- " << texto << endl;
-    }
-
-    // =========================================================
-    // SEMANA 6
-    // Buffer Manager + Politica LRU
-    // =========================================================
-
-    cout << "\n===== SEMANA 6 =====" << endl;
-    cout << "Buffer Manager con politica de reemplazo LRU" << endl;
-
-    // Buffer con capacidad maxima de 2 paginas
-    buffer::BufferManager bufferManager(2, &storageManager);
-
-    // =========================================================
-    // CARGA DE PAGINA 0
-    // =========================================================
-
-    cout << "\n[1] Solicitando pagina 0..." << endl;
-
-    auto frame0 = bufferManager.GetPage(0);
-
-    cout << "Pagina 0 cargada en memoria RAM" << endl;
-
-    string curso1 = "Base de Datos";
-
-    frame0->page->InsertRecord(
-        vector<uint8_t>(curso1.begin(), curso1.end())
-    );
-
-    bufferManager.ReleasePage(0, true);
-
-    cout << "Pagina 0 liberada y marcada como dirty" << endl;
-
-    // =========================================================
-    // CARGA DE PAGINA 1
-    // =========================================================
-
-    cout << "\n[2] Solicitando pagina 1..." << endl;
-
-    auto frame1 = bufferManager.GetPage(1);
-
-    cout << "Pagina 1 cargada en memoria RAM" << endl;
-
-    string curso2 = "Sistemas Operativos";
-
-    frame1->page->InsertRecord(
-        vector<uint8_t>(curso2.begin(), curso2.end())
-    );
-
-    bufferManager.ReleasePage(1, true);
-
-    cout << "Pagina 1 liberada y marcada como dirty" << endl;
-
-    // =========================================================
-    // CARGA DE PAGINA 2
-    // AQUI SE EJECUTA LRU
-    // =========================================================
-
-    cout << "\n[3] Solicitando pagina 2..." << endl;
-
-    cout << "El buffer esta lleno" << endl;
-    cout << "Se ejecuta la politica LRU..." << endl;
-
-    auto frame2 = bufferManager.GetPage(2);
-
-    cout << "La pagina menos recientemente usada fue reemplazada"
-         << endl;
-
-    string curso3 = "Arquitectura de Computadoras";
-
-    frame2->page->InsertRecord(
-        vector<uint8_t>(curso3.begin(), curso3.end())
-    );
-
-    bufferManager.ReleasePage(2, true);
-
-    cout << "Pagina 2 cargada correctamente" << endl;
-
-    // =========================================================
-    // FLUSH FINAL
-    // =========================================================
-
-    cout << "\nGuardando cambios pendientes en disco..." << endl;
-
+    // =====================================================================
+    // C. Construcción del índice B+ Tree
+    // =====================================================================
+    // IMPORTANTE: Forzar que todas las páginas de datos estén en disco antes de
+    // comenzar el árbol. Así GetNumPages() devuelve el conteo real de páginas
+    // físicas y AllocatePage no colisiona con las páginas de datos (0 y 1).
+    cout << "\n  - Sincronizando paginas de datos a disco antes de construir el indice..." << endl;
     bufferManager.Flush();
+    cout << "  - Paginas de datos en disco: " << storageManager.GetNumPages() << endl;
 
-    cout << "Flush ejecutado correctamente" << endl;
+    cout << "\n[C] CONSTRUYENDO INDICE B+ TREE..." << endl;
+    cout << "  - Insertando llaves y RIDs en el arbol..." << endl;
 
-    // =========================================================
-    // VERIFICACION FINAL
-    // =========================================================
+    for (const auto& record : indexedRecords) {
+        bplusTree.Insert(record.first, record.second);
+    }
 
-    cout << "\n===== VERIFICACION FINAL =====" << endl;
+    cout << "  - Indice construido correctamente." << endl;
+    cout << "  - Estructura basica del B+ Tree en persistencia:" << endl;
+    bplusTree.PrintTree();
 
-    for (int i = 0; i < 3; i++) {
+    // =====================================================================
+    // D. Pruebas de búsqueda
+    // =====================================================================
+    cout << "\n[D] EJECUTANDO PRUEBAS DE BUSQUEDA EN EL ARBOL..." << endl;
 
-        auto paginaFinal = storageManager.ReadPageData(i);
+    vector<int> searchKeys = {42, 15, 88, 999}; // 999 no existe
+    for (int key : searchKeys) {
+        cout << "  - Buscando clave [" << key << "]..." << endl;
+        index_m::RID foundRID = bplusTree.Search(key);
 
-        cout << "\nPagina " << i << ":" << endl;
+        if (foundRID.IsValid()) {
+            cout << "    * ENCONTRADA! RID = (Pagina: " << foundRID.pageId << ", Slot: " << foundRID.slotId << ")" << endl;
+            // Recuperar el registro real desde la página usando el Buffer Manager
+            Frame* dataFrame = bufferManager.GetPage(foundRID.pageId);
+            vector<uint8_t> recordBytes = dataFrame->page->ReadRecord(foundRID.slotId);
+            bufferManager.ReleasePage(foundRID.pageId, false); // Liberar sin marcar sucia
 
-        if (paginaFinal) {
-
-            auto registros = paginaFinal->ReadAllRecords();
-
-            if (registros.empty()) {
-
-                cout << "(Sin registros)" << endl;
-            }
-
-            for (const auto& registro : registros) {
-
-                string texto(registro.begin(), registro.end());
-
-                cout << "- " << texto << endl;
-            }
+            string recordText(recordBytes.begin(), recordBytes.end());
+            cout << "    * Contenido del Registro: \"" << recordText << "\"" << endl;
+        } else {
+            cout << "    * NO ENCONTRADA! La clave [" << key << "] no existe en el indice." << endl;
         }
     }
 
-    cout << "\nEjecucion finalizada correctamente." << endl;
+    // =====================================================================
+    // E. Pruebas del Buffer Manager y LRU
+    // =====================================================================
+    cout << "\n[E] PRUEBAS DE FUNCIONAMIENTO DEL BUFFER MANAGER Y REEMPLAZO LRU..." << endl;
+    cout << "    (Se crea un Buffer Manager auxiliar con capacidad=5 para demostrar" << endl;
+    cout << "     el reemplazo LRU sin interferir con la construccion del indice)" << endl;
 
+    // Guardar a disco todo lo que quede pendiente en el pool principal
+    bufferManager.Flush();
+
+    // Pool auxiliar de 5 páginas para la demo de LRU
+    BufferManager lruDemo(5, &storageManager);
+
+    cout << "\n  Estado inicial del pool de demo (vacio):" << endl;
+    lruDemo.PrintStatus();
+
+    // Secuencia de accesos diseñada para forzar reemplazos LRU visibles
+    cout << "  Secuencia de accesos a paginas (pool=5, se forzaran reemplazos):" << endl;
+    vector<int> pagesToAccess = {0, 1, 2, 3, 4, 5, 6, 7, 8, 2, 0};
+    int totalPages = storageManager.GetNumPages();
+
+    for (int pid : pagesToAccess) {
+        if (pid >= totalPages) continue;
+        cout << "  -> Solicitando pagina " << pid << "..." << endl;
+        Frame* f = lruDemo.GetPage(pid);
+        
+        if (pid == 2) {
+            cout << "     [Pin Count: " << f->pinCount << " | DIRTY: marcando como modificada]" << endl;
+            lruDemo.ReleasePage(pid, true);
+        } else {
+            cout << "     [Pin Count: " << f->pinCount << " | CLEAN]" << endl;
+            lruDemo.ReleasePage(pid, false);
+        }
+    }
+
+    cout << "\n  Estado del pool tras la secuencia de accesos:" << endl;
+    lruDemo.PrintStatus();
+
+    // Mostrar página pinned/unpinned manualmente
+    cout << "  Fijando (pin) la pagina 0 sin liberarla..." << endl;
+    Frame* pinnedFrame = lruDemo.GetPage(0);
+    cout << "  -> Pagina 0 fijada. Pin count: " << pinnedFrame->pinCount << endl;
+    cout << "  Solicitando paginas 10, 11, 12 con la pagina 0 pinned..." << endl;
+    for (int pid : {10, 11, 12}) {
+        if (pid >= totalPages) continue;
+        Frame* tf = lruDemo.GetPage(pid);
+        lruDemo.ReleasePage(pid, false);
+    }
+    cout << "  Estado (pagina 0 sigue en pool porque esta pinned):" << endl;
+    lruDemo.PrintStatus();
+
+    cout << "  Liberando (unpin) la pagina 0..." << endl;
+    lruDemo.ReleasePage(0, false);
+    cout << "  -> Pagina 0 liberada. Ahora es candidata a ser reemplazada." << endl;
+
+    cout << "  Forzando reemplazo de pagina 0 solicitando una nueva pagina..." << endl;
+    if (13 < totalPages) {
+        Frame* tf = lruDemo.GetPage(13);
+        lruDemo.ReleasePage(13, false);
+    }
+    cout << "  Estado final del pool de demo:" << endl;
+    lruDemo.PrintStatus();
+
+    cout << "  Ejecutando Flush del pool de demo..." << endl;
+    lruDemo.Flush();
+    cout << "  Flush completado. Paginas dirty escritas a disco." << endl;
+
+    // =====================================================================
+    // F. Estadísticas finales
+    // =====================================================================
+    cout << "\n[F] ESTADISTICAS FINALES DEL SISTEMA" << endl;
+    cout << "---------------------------------------------------------------------" << endl;
+    cout << "  - Cantidad total de paginas en disco:     " << storageManager.GetNumPages() << endl;
+    cout << "  - Cantidad total de registros insertados: " << keys.size() << endl;
+    cout << "\n  Estadisticas del Buffer Pool Principal (construccion del indice):" << endl;
+    cout << "  - Accesos totales al Buffer Pool: " << bufferManager.GetAccessCount() << endl;
+    cout << "  - Hits en memoria RAM:            " << bufferManager.GetHitCount() << endl;
+    cout << "  - Misses (lecturas de disco):     " << bufferManager.GetMissCount() << endl;
+    cout << "  - Hit Rate del Buffer Pool:       " << fixed << setprecision(2) << bufferManager.GetHitRate() * 100.0 << "%" << endl;
+    cout << "\n  Estadisticas del Pool de Demo LRU (seccion E):" << endl;
+    cout << "  - Accesos totales:  " << lruDemo.GetAccessCount() << endl;
+    cout << "  - Hits:             " << lruDemo.GetHitCount() << endl;
+    cout << "  - Misses:           " << lruDemo.GetMissCount() << endl;
+    cout << "  - Hit Rate:         " << fixed << setprecision(2) << lruDemo.GetHitRate() * 100.0 << "%" << endl;
+
+    auto end_time = chrono::high_resolution_clock::now();
+    chrono::duration<double, milli> elapsed = end_time - start_time;
+    cout << "  - Tiempo total de ejecucion: " << elapsed.count() << " ms" << endl;
+    cout << "---------------------------------------------------------------------" << endl;
+
+    cout << "\nEjecucion finalizada correctamente. SGBD en estado consistente." << endl;
     return 0;
 }
