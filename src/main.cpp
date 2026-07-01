@@ -55,8 +55,8 @@ int main() {
     // =====================================================================
     cout << "\n[A] INICIALIZANDO COMPONENTES..." << endl;
 
-    string dbFilename = "../data/database.db";
-    // Limpiar base de datos previa para la demo
+        string dbFilename = "data/database.db";
+    // Limpiar base de datos previa para la demo 
     remove(dbFilename.c_str());
 
     cout << "  - Creando Storage Manager (Archivo: " << dbFilename << ")..." << endl;
@@ -85,7 +85,7 @@ int main() {
     cout << "\n[B] GENERANDO E INSERTANDO REGISTROS DE PRUEBA..." << endl;
     cout << "  - Generando 100 registros de alumnos..." << endl;
 
-    int currentDataPageId = 0;
+    int currentDataPageId = 1; // Reservar página 0 como metadatos del índice B+
     vector<pair<int, index_m::RID>> indexedRecords;
 
     // Generamos claves del 1 al 100
@@ -113,7 +113,7 @@ int main() {
         indexedRecords.push_back({key, irid});
     }
 
-    cout << "  - Insercion finalizada. Registros almacenados en las paginas 0 a " << currentDataPageId << "." << endl;
+    cout << "  - Insercion finalizada. Registros almacenados en las paginas 1 a " << currentDataPageId << "." << endl;
     cout << "  - Se grabaron " << keys.size() << " registros con exito." << endl;
 
     // =====================================================================
@@ -137,10 +137,84 @@ int main() {
     cout << "  - Estructura basica del B+ Tree en persistencia:" << endl;
     bplusTree.PrintTree();
 
+    cout << "\n[D] DEMOSTRACION DE ELIMINACION DEL B+ TREE..." << endl;
+    cout << "  - Claves seleccionadas para eliminar: 1, 7, 15, 42, 88, 99" << endl;
+    cout << "  - Estado del arbol antes de las eliminaciones:" << endl;
+    bplusTree.PrintTree();
+
+    vector<int> keysToDelete = {1, 7, 15, 42, 88, 99};
+    for (int key : keysToDelete) {
+        bool deleted = bplusTree.Delete(key);
+        cout << "  - Eliminando clave [" << key << "]... " << (deleted ? "OK" : "FAIL") << endl;
+    }
+
+    cout << "  - Estado del arbol despues de las eliminaciones:" << endl;
+    bplusTree.PrintTree();
+
+    cout << "  - Verificando busquedas tras la eliminacion..." << endl;
+    for (int key : keysToDelete) {
+        index_m::RID foundRID = bplusTree.Search(key);
+        cout << "    * Clave [" << key << "] => " << (foundRID.IsValid() ? "AUN EXISTE" : "ELIMINADA") << endl;
+    }
+
+    cout << "  - Persistiendo cambios del arbol y recargando desde disco..." << endl;
+    bufferManager.Flush();
+    {
+        storage::StorageManager storageManagerReloaded(dbFilename);
+        buffer::BufferManager bufferManagerReloaded(bufferCapacity, &storageManagerReloaded);
+        BPlusTree loadedTree(&bufferManagerReloaded, &storageManagerReloaded, maxKeysLeaf, maxKeysInternal);
+
+        cout << "  - Arbol recargado desde disco. Root page id = " << loadedTree.GetRootPageId() << endl;
+        loadedTree.PrintTree();
+
+        cout << "  - Validando persistencia tras eliminacion:" << endl;
+        for (int key : {15, 42, 88}) {
+            index_m::RID foundRID = loadedTree.Search(key);
+            cout << "    * Clave [" << key << "] en arbol recargado => " << (foundRID.IsValid() ? "AUN EXISTE" : "ELIMINADA") << endl;
+        }
+        for (int key : {20, 50, 100}) {
+            index_m::RID foundRID = loadedTree.Search(key);
+            cout << "    * Clave [" << key << "] en arbol recargado => " << (foundRID.IsValid() ? "AUN EXISTE" : "ELIMINADA") << endl;
+        }
+
+        bufferManagerReloaded.Flush();
+    }
+
+    cout << "\n  - Reabriendo el manager de almacenamiento para verificar persistencia..." << endl;
+    bufferManager.Flush();
+    {
+        storage::StorageManager storageManagerReloaded(dbFilename);
+        buffer::BufferManager bufferManagerReloaded(bufferCapacity, &storageManagerReloaded);
+        BPlusTree loadedTree(&bufferManagerReloaded, &storageManagerReloaded, maxKeysLeaf, maxKeysInternal);
+        cout << "  - B+ Tree recargado desde disco. Root page id = " << loadedTree.GetRootPageId() << endl;
+        loadedTree.PrintTree();
+
+        cout << "\n[E] EJECUTANDO PRUEBAS DE BUSQUEDA EN EL ARBOL RECARGADO..." << endl;
+        vector<int> searchKeys = {42, 15, 88, 999}; // 999 no existe
+        for (int key : searchKeys) {
+            cout << "  - Buscando clave [" << key << "]..." << endl;
+            index_m::RID foundRID = loadedTree.Search(key);
+
+            if (foundRID.IsValid()) {
+                cout << "    * ENCONTRADA! RID = (Pagina: " << foundRID.pageId << ", Slot: " << foundRID.slotId << ")" << endl;
+                Frame* dataFrame = bufferManagerReloaded.GetPage(foundRID.pageId);
+                vector<uint8_t> recordBytes = dataFrame->page->ReadRecord(foundRID.slotId);
+                bufferManagerReloaded.ReleasePage(foundRID.pageId, false);
+
+                string recordText(recordBytes.begin(), recordBytes.end());
+                cout << "    * Contenido del Registro: \"" << recordText << "\"" << endl;
+            } else {
+                cout << "    * NO ENCONTRADA! La clave [" << key << "] no existe en el indice." << endl;
+            }
+        }
+
+        cout << "\n  - Flush del B+ Tree recargado..." << endl;
+        bufferManagerReloaded.Flush();
+    }
     // =====================================================================
-    // D. Pruebas de búsqueda
+    // D. Pruebas de búsqueda finales con el árbol activo
     // =====================================================================
-    cout << "\n[D] EJECUTANDO PRUEBAS DE BUSQUEDA EN EL ARBOL..." << endl;
+    cout << "\n[F] EJECUTANDO PRUEBAS DE BUSQUEDA EN EL ARBOL..." << endl;
 
     vector<int> searchKeys = {42, 15, 88, 999}; // 999 no existe
     for (int key : searchKeys) {
@@ -164,7 +238,7 @@ int main() {
     // =====================================================================
     // E. Pruebas del Buffer Manager y LRU
     // =====================================================================
-    cout << "\n[E] PRUEBAS DE FUNCIONAMIENTO DEL BUFFER MANAGER Y REEMPLAZO LRU..." << endl;
+    cout << "\n[G] PRUEBAS DE FUNCIONAMIENTO DEL BUFFER MANAGER Y REEMPLAZO LRU..." << endl;
     cout << "    (Se crea un Buffer Manager auxiliar con capacidad=5 para demostrar" << endl;
     cout << "     el reemplazo LRU sin interferir con la construccion del indice)" << endl;
 
@@ -231,7 +305,7 @@ int main() {
     // =====================================================================
     // F. Estadísticas finales
     // =====================================================================
-    cout << "\n[F] ESTADISTICAS FINALES DEL SISTEMA" << endl;
+    cout << "\n[H] ESTADISTICAS FINALES DEL SISTEMA" << endl;
     cout << "---------------------------------------------------------------------" << endl;
     cout << "  - Cantidad total de paginas en disco:     " << storageManager.GetNumPages() << endl;
     cout << "  - Cantidad total de registros insertados: " << keys.size() << endl;

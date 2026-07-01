@@ -59,13 +59,18 @@ namespace index_m {
     // Estructura raíz y lógica del árbol B+ Tree integrada con el Buffer Manager
     class BPlusTree {
     public:
+        static constexpr int METADATA_PAGE_ID = 0;
+
         BPlusTree(buffer::BufferManager* bufferManager, storage::StorageManager* storageManager, int maxKeysLeaf = 3, int maxKeysInternal = 3);
         
         // Búsqueda exacta de un registro por clave
-        RID Search(int key);
+        RID Search(int key) const;
 
         // Inserción de un par clave-RID con split automático
         void Insert(int key, const RID& rid);
+
+        // Eliminación de una clave y reequilibrio del árbol
+        bool Delete(int key);
 
         // Imprime la estructura completa del árbol de forma indentada
         void PrintTree();
@@ -74,6 +79,25 @@ namespace index_m {
         int GetRootPageId() const { return rootPageId_; }
 
     private:
+        void LoadRootPageId();
+        void PersistRootPageId();
+        int32_t ReadMetadataRootPageId();
+        void WriteMetadataRootPageId(int32_t rootPageId);
+        int GetMinKeys(bool is_leaf) const;
+        int FindChildIndex(BPlusTreeNode& parent, int childPageId) const;
+        bool DeleteEntryFromLeaf(int pageId, int key);
+        bool HandleUnderflow(int pageId);
+        bool RedistributeLeafNodes(int underflowPageId, int siblingPageId, int parentPageId, int separatorIdx, bool borrowFromLeft);
+        bool RedistributeInternalNodes(int underflowPageId, int siblingPageId, int parentPageId, int separatorIdx, bool borrowFromLeft);
+        void RemoveParentEntry(int parentPageId, int separatorIdx);
+        void MergeLeafNodes(int leftPageId, int rightPageId, int parentPageId, int separatorIdx);
+        void MergeInternalNodes(int leftPageId, int rightPageId, int parentPageId, int separatorIdx);
+
+        struct PathEntry {
+            int parentPageId;
+            int childIndex;
+        };
+
         buffer::BufferManager* bufferManager_;
         storage::StorageManager* storageManager_;
         int rootPageId_;
