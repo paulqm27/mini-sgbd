@@ -22,3 +22,11 @@ target_include_directories(mini-sgbd PRIVATE src)
 # Tests executable
 add_executable(storage_test tests/storage_test.cpp ${SOURCES})
 target_include_directories(storage_test PRIVATE src)
+
+# B+ Tree delete/merge test
+add_executable(bplus_delete_test tests/bplus_delete_test.cpp ${SOURCES})
+target_include_directories(bplus_delete_test PRIVATE src)
+
+# B+ Tree demo with delete, buffer manager and persistence
+add_executable(bplus_delete_demo tests/bplus_delete_demo.cpp ${SOURCES})
+target_include_directories(bplus_delete_demo PRIVATE src)
