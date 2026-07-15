@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">
+<rect width="100%" height="100%" fill="white"/>
+<line x1="60" y1="340" x2="740" y2="340" stroke="black"/>
+<line x1="60" y1="60" x2="60" y2="340" stroke="black"/>
+<text x="400.0" y="20" font-size="16" text-anchor="middle">Hit Rate vs Buffer Size</text>
+<line x1="60.0" y1="340" x2="60.0" y2="346" stroke="black"/>
+<text x="60.0" y="360" font-size="12" text-anchor="middle">1</text>
+<line x1="73.87755102040816" y1="340" x2="73.87755102040816" y2="346" stroke="black"/>
+<text x="73.87755102040816" y="360" font-size="12" text-anchor="middle">2</text>
+<line x1="115.51020408163265" y1="340" x2="115.51020408163265" y2="346" stroke="black"/>
+<text x="115.51020408163265" y="360" font-size="12" text-anchor="middle">5</text>
+<line x1="184.8979591836735" y1="340" x2="184.8979591836735" y2="346" stroke="black"/>
+<text x="184.8979591836735" y="360" font-size="12" text-anchor="middle">10</text>
+<line x1="323.6734693877551" y1="340" x2="323.6734693877551" y2="346" stroke="black"/>
+<text x="323.6734693877551" y="360" font-size="12" text-anchor="middle">20</text>
+<line x1="740.0" y1="340" x2="740.0" y2="346" stroke="black"/>
+<text x="740.0" y="360" font-size="12" text-anchor="middle">50</text>
+<text x="50" y="344.0" font-size="12" text-anchor="end">0.0</text>
+<line x1="56" y1="340.0" x2="60" y2="340.0" stroke="black"/>
+<text x="50" y="250.66666666666669" font-size="12" text-anchor="end">0.267</text>
+<line x1="56" y1="246.66666666666669" x2="60" y2="246.66666666666669" stroke="black"/>
+<text x="50" y="157.33333333333334" font-size="12" text-anchor="end">0.533</text>
+<line x1="56" y1="153.33333333333334" x2="60" y2="153.33333333333334" stroke="black"/>
+<text x="50" y="63.99999999999994" font-size="12" text-anchor="end">0.8</text>
+<line x1="56" y1="59.99999999999994" x2="60" y2="59.99999999999994" stroke="black"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="60.0,340.0 73.87755102040816,340.0 115.51020408163265,340.0 184.8979591836735,60.0 323.6734693877551,60.0 740.0,60.0" />
+<circle cx="60.0" cy="340.0" r="4" fill="#1f77b4"/>
+<circle cx="73.87755102040816" cy="340.0" r="4" fill="#1f77b4"/>
+<circle cx="115.51020408163265" cy="340.0" r="4" fill="#1f77b4"/>
+<circle cx="184.8979591836735" cy="60.0" r="4" fill="#1f77b4"/>
+<circle cx="323.6734693877551" cy="60.0" r="4" fill="#1f77b4"/>
+<circle cx="740.0" cy="60.0" r="4" fill="#1f77b4"/>
+</svg>
