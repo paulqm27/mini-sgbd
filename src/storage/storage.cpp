@@ -29,8 +29,6 @@ namespace storage {
     bool StorageManager::WritePage(int pageId, const std::vector<uint8_t>& data) {
         if (!file_.is_open()) return false;
 
-        // Solo al escribir actualizamos numPages_: esto garantiza que AllocatePage
-        // siempre devuelva un ID correcto (igual al número de páginas físicas reales).
         if (pageId >= numPages_) {
             numPages_ = pageId + 1;
         }
@@ -53,13 +51,12 @@ namespace storage {
         std::vector<uint8_t> data(PAGE_SIZE, 0);
         if (!file_.is_open()) return data;
 
-        // NOTA: ReadPage NO actualiza numPages_ para no confundir la contabilidad de páginas.
         file_.clear();
         std::streampos pos = static_cast<std::streampos>(static_cast<int64_t>(pageId) * PAGE_SIZE);
         file_.seekg(pos);
         if (!file_.good()) {
             file_.clear();
-            return data; // Página no existe aún en disco: devolver ceros
+            return data;
         }
         file_.read(reinterpret_cast<char*>(data.data()), PAGE_SIZE);
         file_.clear();
