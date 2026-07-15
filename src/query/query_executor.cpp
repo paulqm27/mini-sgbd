@@ -19,9 +19,6 @@ namespace query {
     {}
 
     bool QueryExecutor::CanUseIndex(const QueryPlan& plan) const {
-        // Solo podemos usar el índice B+ si:
-        //   1. Tenemos un árbol B+ disponible.
-        //   2. El predicado es exactamente WHERE id = valor.
         return (bPlusTree_ != nullptr)
             && (plan.predicate.type == Predicate::Type::EQ_ID);
     }
@@ -30,15 +27,12 @@ namespace query {
         std::unique_ptr<Iterator> root;
 
         if (CanUseIndex(plan)) {
-            // ── Plan A: INDEX SCAN ──────────────────────────────────────────
-            // BPlusTree::Search() → RID → BufferManager::GetPage() → Record
             root = std::make_unique<IndexScanOperator>(
                 bPlusTree_,
                 bufferManager_,
                 plan.predicate.idValue
             );
         } else {
-            // ── Plan B: FULL TABLE SCAN ─────────────────────────────────────
             auto scan = std::make_unique<ScanOperator>(
                 bufferManager_,
                 storageManager_,
@@ -46,18 +40,14 @@ namespace query {
             );
 
             if (plan.predicate.type == Predicate::Type::GENERAL) {
-                // Añadir un SelectOperator encima del Scan.
                 root = std::make_unique<SelectOperator>(
-                    scan.release(),  // transferir ownership al SelectOperator
+                    scan.release(),
                     plan.predicate.generalFn
                 );
             } else {
                 root = std::move(scan);
             }
         }
-
-        // ── Proyección (opcional) ───────────────────────────────────────────
-        // Si se especificaron columnas, añadir un ProjectOperator en la cima.
         if (!plan.columns.empty()) {
             root = std::make_unique<ProjectOperator>(
                 root.release(),
@@ -70,14 +60,9 @@ namespace query {
 
     QueryResult QueryExecutor::Execute(const QueryPlan& plan) {
         QueryResult result;
-
-        // Capturar estadísticas ANTES de ejecutar la consulta.
         int accessesBefore = bufferManager_->GetAccessCount();
 
-        // Construir el árbol de operadores.
         auto rootIterator = BuildPlan(plan);
-
-        // Ejecutar el plan: protocolo Open / Next* / Close.
         rootIterator->Open();
 
         Record rec;
@@ -88,7 +73,6 @@ namespace query {
 
         rootIterator->Close();
 
-        // Capturar estadísticas DESPUÉS de ejecutar.
         result.hitRate      = bufferManager_->GetHitRate();
         result.pageAccesses = bufferManager_->GetAccessCount() - accessesBefore;
 

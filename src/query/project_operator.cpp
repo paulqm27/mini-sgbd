@@ -18,8 +18,6 @@ namespace query {
         if (!child_->Next(source)) {
             return false;
         }
-
-        // Mantener pageId/slotId originales para trazabilidad.
         record.pageId = source.pageId;
         record.slotId = source.slotId;
         record.data   = Project(source.data);
@@ -31,7 +29,6 @@ namespace query {
     }
 
     std::vector<uint8_t> ProjectOperator::Project(const std::vector<uint8_t>& source) const {
-        // Calcular el tamaño total del resultado proyectado.
         size_t totalSize = 0;
         for (const auto& col : columns_) {
             totalSize += static_cast<size_t>(col.size);
@@ -47,7 +44,6 @@ namespace query {
                             source.data() + col.offset,
                             static_cast<size_t>(col.size));
             }
-            // Si el registro fuente es más corto de lo esperado, se dejan ceros.
             destOffset += static_cast<size_t>(col.size);
         }
 
