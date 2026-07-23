@@ -49,9 +49,17 @@ target_include_directories(join_demo PRIVATE src)
 add_executable(full_flow_demo src/execution/demo_full_flow.cpp ${SOURCES})
 target_include_directories(full_flow_demo PRIVATE src)
 
+# Demo práctica explicada: integra Storage, Buffer/LRU, B+ Tree y ejecución Volcano
+add_executable(demostracion_practica src/demostracion_practica.cpp ${SOURCES})
+target_include_directories(demostracion_practica PRIVATE src)
+
 # Buffer benchmark for week 16
 add_executable(buffer_benchmark tests/buffer_benchmark.cpp ${SOURCES})
 target_include_directories(buffer_benchmark PRIVATE src)
+
+# Index impact benchmark (Scan vs IndexScan)
+add_executable(benchmark_index_impact tests/benchmark_index_impact.cpp ${SOURCES})
+target_include_directories(benchmark_index_impact PRIVATE src)
 
 # Simple integration test for iterators
 add_executable(iterators_test tests/iterators_test.cpp ${SOURCES})

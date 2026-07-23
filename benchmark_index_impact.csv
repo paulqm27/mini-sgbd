@@ -1,0 +1,8 @@
+Benchmark: Scan vs IndexScan
+Datos: 100 registros en paginas 1..1
+search_key,scan_accesses,scan_misses,index_accesses,index_misses,scan_ms,index_ms
+5,1,0,6,4,0.079349,0.026854
+25,1,0,6,3,0.074295,0.019003
+50,1,0,6,3,0.091271,0.019739
+75,1,0,6,2,0.069139,0.014312
+99,1,0,6,0,0.069852,0.005519

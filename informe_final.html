@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe Técnico - Mini SGBD Semana 14-16</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }
+        h1, h2, h3 { color: #2c3e50; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #3498db; color: white; }
+        tr:nth-child(even) { background-color: #ecf0f1; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .section { page-break-inside: avoid; margin-bottom: 30px; }
+        .success { color: #27ae60; }
+        .warning { color: #e74c3c; }
+    </style>
+</head>
+<body>
+    <h1>Informe Técnico Final</h1>
+    <p><strong>Mini Sistema de Gestión de Base de Datos</strong></p>
+    <p><strong>Semanas 14, 15 y 16</strong></p>
+    <p><em>Fecha: 15 de Julio de 2026</em></p>
+
+    <div class="section">
+        <h2>Resumen Ejecutivo</h2>
+        <p>Se completó la implementación del modelo Volcano para operadores de base de datos, incluyendo:</p>
+        <ul>
+            <li>Operadores básicos: Scan, Select, Project (Semana 14)</li>
+            <li>Algoritmos de Join y optimización con índice B+ Tree (Semana 15)</li>
+            <li>Pruebas exhaustivas y medición de rendimiento (Semana 16)</li>
+        </ul>
+        <p class="success">✓ Todos los componentes implementados y probados exitosamente.</p>
+    </div>
+
+    <div class="section">
+        <h2>Semana 14: Modelo Volcano</h2>
+        <h3>Operadores Implementados</h3>
+        <table>
+            <tr>
+                <th>Operador</th>
+                <th>Descripción</th>
+                <th>Archivo</th>
+                <th>Estado</th>
+            </tr>
+            <tr>
+                <td>Scan</td>
+                <td>Escanea secuencialmente páginas de datos</td>
+                <td>src/execution/scan.{h,cpp}</td>
+                <td class="success">✓ Completo</td>
+            </tr>
+            <tr>
+                <td>Select</td>
+                <td>Filtra tuplas según predicado</td>
+                <td>src/execution/select.{h,cpp}</td>
+                <td class="success">✓ Completo</td>
+            </tr>
+            <tr>
+                <td>Project</td>
+                <td>Proyecta columnas/transforma tuplas</td>
+                <td>src/execution/project.{h,cpp}</td>
+                <td class="success">✓ Completo</td>
+            </tr>
+        </table>
+        <p>Los operadores se integran correctamente con BufferManager y StorageManager.</p>
+    </div>
+
+    <div class="section">
+        <h2>Semana 15: Join y Optimización con Índice</h2>
+        <h3>Algoritmos y Componentes</h3>
+        <table>
+            <tr>
+                <th>Componente</th>
+                <th>Descripción</th>
+                <th>Archivo</th>
+                <th>Estado</th>
+            </tr>
+            <tr>
+                <td>NestedLoopJoin</td>
+                <td>Join mediante producto cartesiano con filtro</td>
+                <td>src/execution/nested_loop_join.{h,cpp}</td>
+                <td class="success">✓ Completo</td>
+            </tr>
+            <tr>
+                <td>IndexScan</td>
+                <td>Busca exacta en B+ Tree</td>
+                <td>src/execution/index_scan.{h,cpp}</td>
+                <td class="success">✓ Completo</td>
+            </tr>
+            <tr>
+                <td>Planner</td>
+                <td>Heurística index-aware para elegir estrategia</td>
+                <td>src/execution/planner.{h,cpp}</td>
+                <td class="success">✓ Completo</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Semana 16: Pruebas y Mediciones</h2>
+        
+        <h3>Suite de Tests Unitarios (GoogleTest)</h3>
+        <pre>Running 6 tests from 6 test suites.
+[  OK  ] IteratorsGTest.ScanSelectProject
+[  OK  ] PlannerGTest.UseIndexScanHeuristic
+[  OK  ] SelectGTest.FilteredResult
+[  OK  ] ProjectGTest.TruncateProjection
+[  OK  ] NestedLoopJoinGTest.JoinEquality
+[  OK  ] IndexScanGTest.ExactKeySearch
+
+[  PASSED  ] 6 tests.</pre>
+
+        <h3>Benchmark: Buffer Manager Hit Rate</h3>
+        <table>
+            <tr>
+                <th>Buffer Size</th>
+                <th>Accesos</th>
+                <th>Hits</th>
+                <th>Misses</th>
+                <th>Hit Rate</th>
+                <th>Tiempo (ms)</th>
+            </tr>
+            <tr><td>1</td><td>45</td><td>0</td><td>45</td><td>0.00</td><td>0.175</td></tr>
+            <tr><td>2</td><td>45</td><td>0</td><td>45</td><td>0.00</td><td>0.171</td></tr>
+            <tr><td>5</td><td>45</td><td>0</td><td>45</td><td>0.00</td><td>0.178</td></tr>
+            <tr><td>10</td><td>45</td><td>36</td><td>9</td><td>0.80</td><td>0.067</td></tr>
+            <tr><td>20</td><td>45</td><td>36</td><td>9</td><td>0.80</td><td>0.054</td></tr>
+            <tr><td>50</td><td>45</td><td>36</td><td>9</td><td>0.80</td><td>0.060</td></tr>
+        </table>
+
+        <h3>Benchmark: Impacto de Índice (Scan vs IndexScan)</h3>
+        <table>
+            <tr>
+                <th>Clave</th>
+                <th>Scan Accesos</th>
+                <th>Scan Misses</th>
+                <th>Index Accesos</th>
+                <th>Index Misses</th>
+                <th>Scan (ms)</th>
+                <th>Index (ms)</th>
+            </tr>
+            <tr><td>5</td><td>1</td><td>0</td><td>6</td><td>4</td><td>0.0793</td><td>0.0269</td></tr>
+            <tr><td>25</td><td>1</td><td>0</td><td>6</td><td>3</td><td>0.0743</td><td>0.0190</td></tr>
+            <tr><td>50</td><td>1</td><td>0</td><td>6</td><td>3</td><td>0.0913</td><td>0.0197</td></tr>
+            <tr><td>75</td><td>1</td><td>0</td><td>6</td><td>2</td><td>0.0691</td><td>0.0143</td></tr>
+            <tr><td>99</td><td>1</td><td>0</td><td>6</td><td>0</td><td>0.0699</td><td>0.0055</td></tr>
+        </table>
+
+        <h3>Demostración Consolidada (full_flow_demo)</h3>
+        <pre>=== DEMO UNIFICADO SEMANA 14-15-16 ===
+1. Insertar datos con BufferManager...
+2. Ejecutar Scan -> Select -> Project...
+   - Resultados: 3 tuplas
+3. Construir B+ Tree para IndexScan...
+   - B+ Tree construido (Root page 28)
+4. Usar heuristica index-aware con IndexScan...
+   - IndexScan encontro: Right Key:8
+5. Ejecutar Nested Loop Join Left x Right...
+   - Join encontrado 6 parejas
+6. Benchmark de BufferManager...
+   - Hit rate: 0.1, Tiempo: 2.24 ms
+=== FIN DEMO UNIFICADO ===</pre>
+    </div>
+
+    <div class="section">
+        <h2>Conclusiones</h2>
+        <ul>
+            <li><strong>Modelo Volcano:</strong> Implementación limpia y extensible de operadores.</li>
+            <li><strong>Hit Rate del Buffer:</strong> Mejora dramáticamente (0% → 80%) cuando buffer size >= 10.</li>
+            <li><strong>Índice B+ Tree:</strong> IndexScan es más eficiente que Scan completo para claves específicas.</li>
+            <li><strong>Heurística index-aware:</strong> Elige correctamente entre estrategias según disponibilidad de índice.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Recomendaciones Futuras</h2>
+        <ul>
+            <li>Implementar HashJoin como alternativa más eficiente.</li>
+            <li>Agregar rangeScan al índice B+ Tree.</li>
+            <li>Usar modelo de costos más sofisticado en planner.</li>
+            <li>Agregar estadísticas de cardinality para optimizaciones avanzadas.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Archivos Generados</h2>
+        <ul>
+            <li>Plan/Cronograma: <code>etapa_14-15-16.md</code></li>
+            <li>Demos: <code>demo_iterators</code>, <code>demo_join</code>, <code>full_flow_demo</code></li>
+            <li>Benchmarks: <code>buffer_benchmark</code>, <code>benchmark_index_impact</code></li>
+            <li>Tests: <code>gtest_iterators</code> (6 tests), <code>iterators_test</code></li>
+            <li>Gráficas: <code>docs/figures/buffer_hitrate.svg</code>, <code>buffer_time.svg</code></li>
+        </ul>
+    </div>
+
+    <p style="text-align: center; margin-top: 50px; color: #7f8c8d;">
+        <em>Documento generado automáticamente. Para imprimir a PDF: Ctrl+P desde el navegador.</em>
+    </p>
+</body>
+</html>

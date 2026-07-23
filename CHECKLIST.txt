@@ -1,0 +1,95 @@
+===============================================
+MINI SGBD - CHECKLIST DE COMPLETACIÓN
+Semana 14-15-16
+===============================================
+
+SEMANA 14: MODELO VOLCANO
+===========================
+✅ Iterator base interface (src/execution/iterator.h)
+✅ Scan operator (src/execution/scan.{h,cpp})
+✅ Select operator (src/execution/select.{h,cpp})
+✅ Project operator (src/execution/project.{h,cpp})
+✅ BufferManager integration
+✅ StorageManager integration
+✅ demo_iterators.cpp ejecutable
+
+SEMANA 15: JOIN Y OPTIMIZACIÓN
+=================================
+✅ NestedLoopJoin (src/execution/nested_loop_join.{h,cpp})
+✅ IndexScan (src/execution/index_scan.{h,cpp})
+✅ Planner heurística (src/execution/planner.{h,cpp})
+✅ B+ Tree index integration
+✅ demo_join.cpp ejecutable
+
+SEMANA 16: PRUEBAS Y MEDICIONES
+==================================
+✅ GoogleTest framework integrado (FetchContent)
+✅ 6 tests unitarios (gtest_iterators.cpp)
+   - ScanSelectProject
+   - UseIndexScanHeuristic
+   - FilteredResult
+   - TruncateProjection
+   - JoinEquality
+   - ExactKeySearch
+✅ Buffer benchmark (buffer_benchmark.cpp)
+✅ Index impact benchmark (benchmark_index_impact.cpp)
+✅ SVG graphs (sin matplotlib, puro SVG)
+   - buffer_hitrate.svg
+   - buffer_time.svg
+✅ HTML informe (informe_final.html)
+✅ Markdown informe (informe_final.md)
+
+COMPILACIÓN Y BUILD
+====================
+✅ CMakeLists.txt actualizado
+✅ Todo compila sin errores
+✅ Targets:
+   - mini-sgbd
+   - storage_test
+   - bplus_delete_test
+   - bplus_delete_demo
+   - demo_iterators
+   - demo_join
+   - full_flow_demo
+   - buffer_benchmark
+   - benchmark_index_impact
+   - iterators_test
+   - gtest_iterators
+
+DOCUMENTACIÓN
+===============
+✅ etapa_14-15-16.md (plan original)
+✅ informe_final.md (informe Markdown)
+✅ informe_final.html (informe web/PDF)
+✅ RESUMEN_FINAL.md (resumen ejecutivo)
+✅ CHECKLIST.txt (este archivo)
+
+EJECUCIÓN Y RESULTADOS
+=======================
+✅ Todos los tests: 6/6 PASADOS
+✅ Buffer benchmark: 6 data points
+✅ Index impact benchmark: 5 data points
+✅ full_flow_demo: 6 steps completados
+✅ Gráficas SVG: 2 generadas
+✅ CSV files:
+   - benchmark.csv (buffer hit rate)
+   - benchmark_index_impact.csv (Scan vs Index)
+
+RESULTADOS PRINCIPALES
+======================
+• Hit rate del buffer: 0% (pequeño) → 80% (buffer >= 10)
+• IndexScan impacto: -50% a -92% más rápido que Scan
+• Tests: 100% pass rate (6/6)
+• Operadores: Todos correctos según tests
+• Planner heurística: Elige IndexScan correctamente
+
+STATUS FINAL
+============
+🎯 PROYECTO COMPLETADO - TODOS LOS OBJETIVOS ALCANZADOS
+✅ Implementación: COMPLETA
+✅ Testing: COMPLETO
+✅ Documentación: COMPLETA
+✅ Benchmarking: COMPLETO
+✅ Informe: COMPLETO
+
+No hay items pendientes.
