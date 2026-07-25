@@ -59,3 +59,11 @@ add_executable(test_performance
     ${QUERY_SOURCES}
 )
 target_include_directories(test_performance PRIVATE src)
+
+# ---- Demo integral: Sustentación del Proyecto Final ----
+add_executable(test_full_system_demo
+    tests/test_full_system_demo.cpp
+    ${SOURCES}
+    ${QUERY_SOURCES}
+)
+target_include_directories(test_full_system_demo PRIVATE src)

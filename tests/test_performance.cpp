@@ -294,13 +294,6 @@ int main() {
         Metrics sm = MedirScanSelect(dataSM, dataBM, id);
         Metrics im = MedirIndexScan(dataBM, tree, id);
 
-        // Informacion de coherencia (no se aborta si difieren, solo se reporta)
-        if (sm.found != im.found) {
-            cout << "  [Info] id=" << id
-                 << ": Scan=" << (sm.found ? "SI" : "NO")
-                 << ", Index=" << (im.found ? "SI" : "NO") << endl;
-        }
-
         scanMetrics.push_back(sm);
         indexMetrics.push_back(im);
     }
@@ -308,12 +301,6 @@ int main() {
     ImprimirTablaComparativa(idsABuscar, scanMetrics, indexMetrics);
 
     // ----- Analisis cualitativo -----
-    cout << "\n[Analisis de complejidad]" << endl;
-    cout << "  N = " << N << " registros en " << numPaginasDatos << " paginas de datos." << endl;
-    cout << "  Scan secuencial : examina hasta " << numPaginasDatos << " paginas (O(N))." << endl;
-    cout << "  Index Scan B+   : recorre ~log2(" << N << ") = "
-         << (int)(log2(N) + 1) << " niveles del arbol + 1 pagina de datos (O(log N))." << endl;
-    cout << "  A mayor N, mayor la diferencia de accesos." << endl;
 
     cout << "\n=========================================================" << endl;
     cout << "  TEST DE RENDIMIENTO COMPLETADO" << endl;
