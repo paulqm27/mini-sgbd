@@ -1006,13 +1006,10 @@ int main() {
     PrintSeparator('=');
     if (globalOk) {
         cout << "\n";
-        cout << "  [OK] TODOS LOS COMPONENTES FUNCIONAN CORRECTAMENTE\n";
-        cout << "       El Mini-SGBD esta listo para la sustentacion.\n";
         cout << "\n";
     } else {
         cout << "\n";
         cout << "  [ERROR] ALGUNOS COMPONENTES PRESENTARON FALLAS.\n";
-        cout << "          Revise los errores reportados arriba.\n";
         cout << "\n";
     }
     PrintSeparator('=');
