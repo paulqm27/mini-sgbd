@@ -1,30 +1,3 @@
-/**
- * test_query_operators.cpp
- *
- * Pruebas de los operadores del Procesador de Consultas (Semanas 14 y 15).
- *
- * ARQUITECTURA DE ALMACENAMIENTO:
- *   - Archivo de datos (.db)  : solo registros de Persona (tabla heap).
- *   - Archivo de índice (.idx): solo páginas del B+ Tree.
- *   Dos StorageManagers separados — diseño real de un SGBD.
- *
- * Estructura del registro de prueba (Persona) — 40 bytes fijos:
- *   offset  0, size 4 : id     (int32_t)
- *   offset  4, size 4 : edad   (int32_t)
- *   offset  8, size 32: nombre (char[32], null-terminated)
- *
- * Estructura del registro de prueba (Curso) — 40 bytes fijos:
- *   offset  0, size 4 : idCurso   (int32_t)
- *   offset  4, size 4 : idPersona (int32_t)
- *   offset  8, size 32: nombreCurso (char[32], null-terminated)
- *
- * Pruebas implementadas:
- *   1. TestScan              — Recorre todos los registros con ScanOperator
- *   2. TestSelect            — Filtra registros con SelectOperator (edad > 18)
- *   3. TestProject           — Proyecta solo id y nombre con ProjectOperator
- *   4. TestNestedLoopJoin    — Combina dos tablas con NestedLoopJoinOperator
- *   5. TestIndexScan         — Busca por clave usando IndexScanOperator + B+ Tree
- */
 
 #include "query/record.h"
 #include "query/iterator.h"
@@ -51,10 +24,6 @@ using namespace storage;
 using namespace buffer;
 using namespace index_m;
 using namespace query;
-
-// =============================================================================
-// Struct de persona y helpers de serialización
-// =============================================================================
 
 struct Persona {
     int32_t id;
@@ -83,10 +52,6 @@ static Persona DeserializePersona(const vector<uint8_t>& buf) {
 static void ImprimirPersona(const Persona& p) {
     cout << "  [id=" << p.id << ", edad=" << p.edad << ", nombre=" << p.nombre << "]" << endl;
 }
-
-// =============================================================================
-// Struct de curso y helpers de serialización
-// =============================================================================
 
 struct Curso {
     int32_t idCurso;
@@ -121,20 +86,16 @@ static const ColumnDef COL_ID     = { "id",     0,  4  };
 static const ColumnDef COL_EDAD   = { "edad",   4,  4  };
 static const ColumnDef COL_NOMBRE = { "nombre", 8,  32 };
 
-// =============================================================================
-// Helper: insertar personas en la tabla (heap file) y registrar en el índice.
-// =============================================================================
 
-static void InsertarPersonas(StorageManager& dataSM,   // archivo de datos
+static void InsertarPersonas(StorageManager& dataSM,
                              BufferManager&  dataBM,
-                             BufferManager&  idxBM,     // buffer del índice
+                             BufferManager&  idxBM,
                              BPlusTree&      tree,
                              const vector<Persona>& personas)
 {
     for (const auto& p : personas) {
         auto datos = SerializePersona(p);
 
-        // Buscar una página de datos con espacio libre.
         int numPages = dataSM.GetNumPages();
         int pageId   = -1;
 
@@ -144,7 +105,6 @@ static void InsertarPersonas(StorageManager& dataSM,   // archivo de datos
                 int slotId = frame->page->GetNumSlots() - 1;
                 dataBM.ReleasePage(i, true);
                 pageId = i;
-                // El RID apunta a la página del archivo de DATOS.
                 tree.Insert(p.id, RID{ pageId, slotId });
                 break;
             }
@@ -152,7 +112,6 @@ static void InsertarPersonas(StorageManager& dataSM,   // archivo de datos
         }
 
         if (pageId == -1) {
-            // Nueva página de datos.
             pageId = numPages;
             auto* frame = dataBM.GetPage(pageId);
             bool ok = frame->page->InsertRecord(datos);
@@ -165,10 +124,6 @@ static void InsertarPersonas(StorageManager& dataSM,   // archivo de datos
     dataBM.Flush();
     idxBM.Flush();
 }
-
-// =============================================================================
-// Helper: insertar cursos en la tabla (heap file).
-// =============================================================================
 
 static void InsertarCursos(StorageManager& dataSM,
                            BufferManager&  dataBM,
@@ -201,10 +156,6 @@ static void InsertarCursos(StorageManager& dataSM,
     dataBM.Flush();
 }
 
-// =============================================================================
-// Test 1: ScanOperator
-// =============================================================================
-
 void TestScan(StorageManager& dataSM, BufferManager& dataBM, int numEsperados) {
     cout << "\n--- Test 1: ScanOperator ---" << endl;
 
@@ -224,10 +175,6 @@ void TestScan(StorageManager& dataSM, BufferManager& dataBM, int numEsperados) {
     assert(count == numEsperados && "El numero de registros escaneados no coincide");
     cout << "TestScan PASSED!" << endl;
 }
-
-// =============================================================================
-// Test 2: SelectOperator
-// =============================================================================
 
 void TestSelect(StorageManager& dataSM, BufferManager& dataBM) {
     cout << "\n--- Test 2: SelectOperator (edad > 18) ---" << endl;
@@ -258,10 +205,6 @@ void TestSelect(StorageManager& dataSM, BufferManager& dataBM) {
     cout << "TestSelect PASSED!" << endl;
 }
 
-// =============================================================================
-// Test 3: ProjectOperator
-// =============================================================================
-
 void TestProject(StorageManager& dataSM, BufferManager& dataBM) {
     cout << "\n--- Test 3: ProjectOperator (id, nombre) ---" << endl;
 
@@ -273,7 +216,6 @@ void TestProject(StorageManager& dataSM, BufferManager& dataBM) {
     int count = 0;
     Record rec;
     while (project.Next(rec)) {
-        // El registro proyectado tiene: 4 bytes id + 32 bytes nombre = 36 bytes
         assert(rec.data.size() == 36 && "Tamano proyectado incorrecto");
 
         int32_t id = 0;
@@ -291,11 +233,6 @@ void TestProject(StorageManager& dataSM, BufferManager& dataBM) {
     assert(count > 0);
     cout << "TestProject PASSED!" << endl;
 }
-
-// =============================================================================
-// Test 4: NestedLoopJoinOperator
-// =============================================================================
-
 void TestNestedLoopJoin(StorageManager& dataSM1, BufferManager& dataBM1,
                         StorageManager& dataSM2, BufferManager& dataBM2)
 {
@@ -305,7 +242,6 @@ void TestNestedLoopJoin(StorageManager& dataSM1, BufferManager& dataBM1,
     ScanOperator scanLeft (&dataBM1, &dataSM1);
     ScanOperator scanRight(&dataBM2, &dataSM2);
 
-    // Condición de join: Persona.id == Curso.idPersona
     NestedLoopJoinOperator join(
         &scanLeft,
         &scanRight,
@@ -326,10 +262,8 @@ void TestNestedLoopJoin(StorageManager& dataSM1, BufferManager& dataBM1,
     int count = 0;
     Record rec;
     while (join.Next(rec)) {
-        // El registro combinado tiene: sizeof(Persona) + sizeof(Curso) = 80 bytes
         assert(rec.data.size() == sizeof(Persona) + sizeof(Curso));
 
-        // Deserializar ambas partes concatenadas
         vector<uint8_t> leftData(rec.data.begin(), rec.data.begin() + sizeof(Persona));
         vector<uint8_t> rightData(rec.data.begin() + sizeof(Persona), rec.data.end());
 
@@ -348,16 +282,11 @@ void TestNestedLoopJoin(StorageManager& dataSM1, BufferManager& dataBM1,
     cout << "TestNestedLoopJoin PASSED!" << endl;
 }
 
-// =============================================================================
-// Test 5: IndexScanOperator
-// =============================================================================
-
 void TestIndexScan(BufferManager& dataBM, BPlusTree& tree, int searchId,
                    const vector<Persona>& personas)
 {
     cout << "\n--- Test 5: IndexScanOperator (id = " << searchId << ") ---" << endl;
 
-    // dataBM: el buffer que maneja el archivo de datos (donde leer el registro).
     IndexScanOperator idxScan(&tree, &dataBM, searchId);
     idxScan.Open();
 
@@ -373,8 +302,6 @@ void TestIndexScan(BufferManager& dataBM, BPlusTree& tree, int searchId,
     } else {
         cout << "  Clave " << searchId << " no encontrada en el indice." << endl;
     }
-
-    // Verificar coherencia con los datos originales.
     bool existeEnTabla = false;
     for (const auto& p : personas) {
         if (p.id == searchId) { existeEnTabla = true; break; }
@@ -384,25 +311,19 @@ void TestIndexScan(BufferManager& dataBM, BPlusTree& tree, int searchId,
     cout << "TestIndexScan PASSED!" << endl;
 }
 
-// =============================================================================
-// main
-// =============================================================================
-
 int main() {
     cout << "=========================================================" << endl;
     cout << "  PRUEBAS DEL PROCESADOR DE CONSULTAS (Semanas 14 y 15)  " << endl;
     cout << "=========================================================" << endl;
 
-    // Archivos separados: datos vs índice — igual que en un SGBD real.
-    const string DATA_FILE  = "test_qops_personas.db";   // tabla heap personas
-    const string IDX_FILE   = "test_qops_personas.idx";  // índice B+ personas
-    const string DATA_FILE2 = "test_qops_cursos.db";     // tabla heap cursos
+    const string DATA_FILE  = "test_qops_personas.db";
+    const string IDX_FILE   = "test_qops_personas.idx";
+    const string DATA_FILE2 = "test_qops_cursos.db";
 
     remove(DATA_FILE.c_str());
     remove(IDX_FILE.c_str());
     remove(DATA_FILE2.c_str());
 
-    // ----- Datos de prueba (Personas) -----
     vector<Persona> personas = {
         { 1,  15, "Ana"      },
         { 2,  22, "Bruno"    },
@@ -414,7 +335,6 @@ int main() {
         { 8,  35, "Helena"   },
     };
 
-    // ----- Datos de prueba (Cursos) -----
     vector<Curso> cursos = {
         { 101, 1, "Natacion" },
         { 102, 2, "Futbol"   },
@@ -423,11 +343,9 @@ int main() {
         { 105, 8, "Karate"   }
     };
 
-    // ----- Tabla 1: Personas -----
     StorageManager dataSM(DATA_FILE);
     BufferManager  dataBM(10, &dataSM);
 
-    // ----- Índice 1: B+ Tree en archivo separado -----
     StorageManager idxSM(IDX_FILE);
     BufferManager  idxBM(10, &idxSM);
     BPlusTree      tree(&idxBM, &idxSM, 5, 5);
@@ -437,20 +355,18 @@ int main() {
     cout << "  Paginas de datos : " << dataSM.GetNumPages() << endl;
     cout << "  Paginas de indice: " << idxSM.GetNumPages() << endl;
 
-    // ----- Tabla 2: Cursos (para el join) -----
     StorageManager dataSM2(DATA_FILE2);
     BufferManager  dataBM2(10, &dataSM2);
     cout << "Insertando cursos en tabla 2..." << endl;
     InsertarCursos(dataSM2, dataBM2, cursos);
     cout << "  Paginas de cursos: " << dataSM2.GetNumPages() << endl;
 
-    // ----- Ejecutar pruebas -----
     TestScan(dataSM, dataBM, static_cast<int>(personas.size()));
     TestSelect(dataSM, dataBM);
     TestProject(dataSM, dataBM);
     TestNestedLoopJoin(dataSM, dataBM, dataSM2, dataBM2);
-    TestIndexScan(dataBM, tree, 4, personas);   // id=4 (Diana), existe
-    TestIndexScan(dataBM, tree, 99, personas);  // id=99, no existe
+    TestIndexScan(dataBM, tree, 4, personas);
+    TestIndexScan(dataBM, tree, 99, personas);
 
     cout << "\n=========================================================" << endl;
     cout << "  TODAS LAS PRUEBAS COMPLETADAS CON EXITO" << endl;

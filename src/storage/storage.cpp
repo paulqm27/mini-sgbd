@@ -11,8 +11,6 @@ namespace storage {
             file_.close();
             file_.open(filename, std::ios::in | std::ios::out | std::ios::binary);
         }
-        // Calcular numPages_ una única vez desde el tamaño real del archivo en disco.
-        // NO se actualiza en ReadPage: solo las escrituras determinan cuántas páginas existen.
         if (file_.is_open()) {
             file_.clear();
             file_.seekg(0, std::ios::end);

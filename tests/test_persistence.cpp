@@ -12,18 +12,15 @@ using namespace index_m;
 using namespace storage;
 using namespace buffer;
 
-// Helper RID struct for inserting records
 struct TableRID {
     int32_t pageId;
     int32_t slotId;
 };
 
-// Insert a record using BufferManager into data pages (starting at page 1)
 TableRID InsertRecordToTable(BufferManager& bm, const string& recordStr, int& currentDataPageId) {
     vector<uint8_t> record(recordStr.begin(), recordStr.end());
     Frame* frame = bm.GetPage(currentDataPageId);
 
-    // If current page doesn't have space, use the next page
     if (!frame->page->InsertRecord(record)) {
         bm.ReleasePage(currentDataPageId, false);
         currentDataPageId++;
@@ -35,7 +32,7 @@ TableRID InsertRecordToTable(BufferManager& bm, const string& recordStr, int& cu
     rid.pageId = currentDataPageId;
     rid.slotId = frame->page->GetNumSlots() - 1;
 
-    bm.ReleasePage(currentDataPageId, true); // Release and mark dirty
+    bm.ReleasePage(currentDataPageId, true);
     return rid;
 }
 
@@ -47,17 +44,15 @@ void TestPersistence() {
     string dbFilename = "test_persistence_sgbd.db";
     remove(dbFilename.c_str());
 
-    int currentDataPageId = 1; // Reservamos la página 0 para metadatos del árbol B+
+    int currentDataPageId = 1;
     int maxKeys = 3;
 
-    // FASE 1: Crear base de datos, insertar datos, construir índice y persistir
     {
         cout << "[Fase 1] Creando componentes..." << endl;
         StorageManager sm(dbFilename);
         BufferManager bm(10, &sm);
         BPlusTree tree(&bm, &sm, maxKeys, maxKeys);
 
-        // Alumnos de prueba
         vector<pair<int, string>> studentRecords = {
             {10, "Alumno 10: Paul, Nota: 18"},
             {20, "Alumno 20: Maria, Nota: 15"},
@@ -65,7 +60,6 @@ void TestPersistence() {
             {40, "Alumno 40: Lucia, Nota: 20"}
         };
 
-        // 1. Insertar todos los registros de datos en las páginas correspondientes
         cout << "  Escribiendo registros de datos en disco..." << endl;
         vector<pair<int, RID>> indexedRecords;
         for (const auto& record : studentRecords) {
@@ -76,12 +70,9 @@ void TestPersistence() {
             indexedRecords.push_back({key, RID{trid.pageId, trid.slotId}});
         }
 
-        // IMPORTANTE: Forzar que las páginas de datos estén en disco antes de insertar en el B+ Tree
-        // para evitar colisiones de IDs de páginas.
         bm.Flush();
         cout << "  Paginas de datos sincronizadas. Paginas en disco: " << sm.GetNumPages() << endl;
 
-        // 2. Insertar los pares Clave-RID en el B+ Tree
         cout << "  Construyendo el indice B+ Tree..." << endl;
         for (const auto& item : indexedRecords) {
             tree.Insert(item.first, item.second);
@@ -90,20 +81,16 @@ void TestPersistence() {
 
         cout << "Estructura del arbol antes del cierre:" << endl;
         tree.PrintTree();
-
-        // Flush final para guardar los cambios del árbol
         bm.Flush();
         cout << "[Fase 1] Cambios persistidos. Cerrando componentes." << endl;
     }
 
-    // FASE 2: Reabrir la base de datos desde disco y verificar la persistencia
     {
         cout << "\n[Fase 2] Reabriendo base de datos para verificar persistencia..." << endl;
         StorageManager sm(dbFilename);
         BufferManager bm(10, &sm);
         BPlusTree tree(&bm, &sm, maxKeys, maxKeys);
 
-        // Verificar que el root page id sea válido
         int rootId = tree.GetRootPageId();
         cout << "  ID de pagina raiz recargado: " << rootId << endl;
         assert(rootId >= 0);
@@ -111,7 +98,6 @@ void TestPersistence() {
         cout << "Estructura del arbol recargado:" << endl;
         tree.PrintTree();
 
-        // Validar búsquedas y recuperación de contenido
         vector<pair<int, string>> expectedRecords = {
             {10, "Alumno 10: Paul, Nota: 18"},
             {20, "Alumno 20: Maria, Nota: 15"},
@@ -128,8 +114,7 @@ void TestPersistence() {
 
             if (foundRID.IsValid()) {
                 cout << "FOUND! RID = (" << foundRID.pageId << "," << foundRID.slotId << ")" << endl;
-                
-                // Recuperar la página de datos a través del Buffer Manager
+
                 Frame* frame = bm.GetPage(foundRID.pageId);
                 vector<uint8_t> bytes = frame->page->ReadRecord(foundRID.slotId);
                 bm.ReleasePage(foundRID.pageId, false);

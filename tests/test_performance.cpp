@@ -1,22 +1,3 @@
-/**
- * test_performance.cpp
- *
- * Comparacion de rendimiento: Scan secuencial vs. Busqueda con B+ Tree.
- *
- * Arquitectura de almacenamiento (archivos separados):
- *   - test_perf_data.db : tabla heap (registros de Persona)
- *   - test_perf_idx.db  : indice B+ Tree
- *
- * Metodologia:
- *   1. Insertar N registros en disco y construir indice B+.
- *   2. Para cada id de busqueda:
- *        a) Medir Scan secuencial + Select (busqueda lineal O(N)).
- *        b) Resetear estadisticas del BufferManager.
- *        c) Medir IndexScan via B+ Tree (busqueda logaritmica O(log N)).
- *   3. Imprimir tabla comparativa con tiempo (us), accesos al buffer y hit rate.
- *
- * N = 200 personas.
- */
 
 #include "query/record.h"
 #include "query/scan_operator.h"
@@ -44,9 +25,6 @@ using namespace buffer;
 using namespace index_m;
 using namespace query;
 
-// =============================================================================
-// Struct de persona y helpers
-// =============================================================================
 
 struct Persona {
     int32_t id;
@@ -61,10 +39,6 @@ static vector<uint8_t> SerializePersona(const Persona& p) {
     memcpy(buf.data() + 8, p.nombre, 32);
     return buf;
 }
-
-// =============================================================================
-// Insertar registros en tabla de datos y construir indice B+
-// =============================================================================
 
 static void InsertarPersonas(StorageManager& dataSM,
                              BufferManager&  dataBM,
@@ -104,9 +78,6 @@ static void InsertarPersonas(StorageManager& dataSM,
     idxBM.Flush();
 }
 
-// =============================================================================
-// Metricas de una busqueda
-// =============================================================================
 
 struct Metrics {
     long long  microseconds   = 0;
@@ -114,10 +85,6 @@ struct Metrics {
     double     hitRate        = 0.0;
     bool       found          = false;
 };
-
-// =============================================================================
-// Medir busqueda con SCAN + SELECT (O(N) — busqueda lineal)
-// =============================================================================
 
 static Metrics MedirScanSelect(StorageManager& dataSM, BufferManager& dataBM,
                                int targetId)
@@ -145,18 +112,12 @@ static Metrics MedirScanSelect(StorageManager& dataSM, BufferManager& dataBM,
     return { us, dataBM.GetAccessCount(), dataBM.GetHitRate(), found };
 }
 
-// =============================================================================
-// Medir busqueda con INDEX SCAN (O(log N) — B+ Tree)
-// =============================================================================
-
 static Metrics MedirIndexScan(BufferManager& dataBM, BPlusTree& tree,
                               int targetId)
 {
     dataBM.ResetStats();
 
     auto t0 = chrono::high_resolution_clock::now();
-
-    // El IndexScanOperator busca en el arbol (idxBM) y lee datos (dataBM).
     IndexScanOperator idxScan(&tree, &dataBM, targetId);
     idxScan.Open();
     Record rec;
@@ -168,10 +129,6 @@ static Metrics MedirIndexScan(BufferManager& dataBM, BPlusTree& tree,
 
     return { us, dataBM.GetAccessCount(), dataBM.GetHitRate(), found };
 }
-
-// =============================================================================
-// Imprimir tabla comparativa de resultados
-// =============================================================================
 
 static void ImprimirTablaComparativa(
     const vector<int>& ids,
@@ -201,7 +158,6 @@ static void ImprimirTablaComparativa(
 
     cout << "+--------+----------+--------------+--------------+----------+--------------+--------------+" << endl;
 
-    // Calcular promedios
     long long avgScanUs = 0, avgIdxUs = 0;
     int       avgScanAcc = 0, avgIdxAcc = 0;
     double    avgScanHit = 0.0, avgIdxHit = 0.0;
@@ -227,9 +183,6 @@ static void ImprimirTablaComparativa(
     cout << "+--------+----------+--------------+--------------+----------+--------------+--------------+" << endl;
 }
 
-// =============================================================================
-// main
-// =============================================================================
 
 int main() {
     cout << "=========================================================" << endl;
@@ -241,7 +194,6 @@ int main() {
     remove(DATA_FILE.c_str());
     remove(IDX_FILE.c_str());
 
-    // ----- Generar N personas -----
     const int N = 200;
     vector<Persona> personas;
     personas.reserve(N);
@@ -252,7 +204,7 @@ int main() {
         snprintf(p.nombre, sizeof(p.nombre), "Persona_%03d", i);
         personas.push_back(p);
     }
-    // Barajar de forma determinista
+
     for (int i = 0; i < N; i++) {
         int j = (i * 31 + 7) % N;
         swap(personas[i], personas[j]);
@@ -260,11 +212,9 @@ int main() {
 
     cout << "\nInsertando " << N << " personas..." << endl;
 
-    // Buffer de datos (para la tabla heap)
     StorageManager dataSM(DATA_FILE);
     BufferManager  dataBM(16, &dataSM);
 
-    // Buffer del indice (para el B+ Tree — archivo separado)
     StorageManager idxSM(IDX_FILE);
     BufferManager  idxBM(16, &idxSM);
     BPlusTree      tree(&idxBM, &idxSM, 7, 7);
@@ -278,7 +228,6 @@ int main() {
     cout << "  Paginas de indice : " << numPaginasIndice << endl;
     cout << "  Registros         : " << N << endl;
 
-    // ----- IDs a buscar -----
     vector<int> idsABuscar = { 1, 50, 100, 150, 200 };
 
     cout << "\nEjecutando busquedas comparativas..." << endl;
@@ -286,7 +235,6 @@ int main() {
     vector<Metrics> scanMetrics, indexMetrics;
 
     for (int id : idsABuscar) {
-        // Primera pasada de calentamiento (no incluida en las metricas finales)
         MedirScanSelect(dataSM, dataBM, id);
         MedirIndexScan(dataBM, tree, id);
 
@@ -299,8 +247,6 @@ int main() {
     }
 
     ImprimirTablaComparativa(idsABuscar, scanMetrics, indexMetrics);
-
-    // ----- Analisis cualitativo -----
 
     cout << "\n=========================================================" << endl;
     cout << "  TEST DE RENDIMIENTO COMPLETADO" << endl;

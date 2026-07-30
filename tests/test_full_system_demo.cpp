@@ -1,53 +1,3 @@
-/**
- * =============================================================================
- *  test_full_system_demo.cpp
- *  Demostracion Final Integral -- Mini Sistema Gestor de Base de Datos (C++)
- * =============================================================================
- *
- *  Proposito:
- *    Archivo de prueba unico que recorre, en una sola ejecucion, TODAS las
- *    funcionalidades implementadas en el Mini-SGBD y finaliza con un benchmark
- *    comparativo de rendimiento (Scan secuencial vs. B+ Tree Index Scan).
- *
- *  Orden de ejecucion:
- *    1.  Inicializacion              -- Limpieza y creacion de componentes
- *    2.  Persistencia                -- Escritura / relectura desde disco
- *    3.  Buffer Manager (LRU)        -- Hits, Misses, Evictions, Hit Rate
- *    4.  Insercion B+ Tree           -- 1 000 claves con progreso
- *    5.  Busqueda B+ Tree            -- Claves existentes e inexistentes
- *    6.  Eliminacion B+ Tree         -- Delete + verificacion
- *    7.  ScanOperator                -- Recorrido completo (Volcano)
- *    8.  SelectOperator              -- Filtro por predicado
- *    9.  ProjectOperator             -- Proyeccion de columnas
- *   10.  NestedLoopJoinOperator      -- Join de dos tablas
- *   11.  IndexScanOperator           -- Busqueda via indice
- *   12.  QueryExecutor               -- Decision automatica IndexScan vs Scan
- *   13.  Benchmark Final             -- 10 000 / 50 000 / 100 000 registros
- *   14.  Resumen Final               -- Checklist visual de componentes OK
- *
- *  Estructura del registro Persona (40 bytes fijos):
- *    offset  0, size  4 : id      (int32_t)
- *    offset  4, size  4 : edad    (int32_t)
- *    offset  8, size 32 : nombre  (char[32], null-terminated)
- *
- *  Estructura del registro Curso (40 bytes fijos):
- *    offset  0, size  4 : idCurso    (int32_t)
- *    offset  4, size  4 : idPersona  (int32_t)
- *    offset  8, size 32 : nombreCurso (char[32], null-terminated)
- *
- *  Medicion de rendimiento:
- *    std::chrono::high_resolution_clock  ->  nanosegundos -> milisegundos
- *
- *  Uso en CMakeLists.txt:
- *    add_executable(test_full_system_demo
- *        tests/test_full_system_demo.cpp ${SOURCES} ${QUERY_SOURCES})
- *    target_include_directories(test_full_system_demo PRIVATE src)
- * =============================================================================
- */
-
-// ---------------------------------------------------------------------------
-// Cabeceras del proyecto
-// ---------------------------------------------------------------------------
 #include "storage/storage.h"
 #include "storage/page.h"
 #include "buffer/buffer.h"
@@ -61,9 +11,7 @@
 #include "query/index_scan_operator.h"
 #include "query/query_executor.h"
 
-// ---------------------------------------------------------------------------
-// Cabeceras estandar
-// ---------------------------------------------------------------------------
+
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -83,11 +31,7 @@ using namespace buffer;
 using namespace index_m;
 using namespace query;
 
-// ===========================================================================
-// SECCION A: Tipos de datos y helpers de serializacion
-// ===========================================================================
 
-/** Registro de Persona -- 40 bytes fijos en disco. */
 struct Persona {
     int32_t id;
     int32_t edad;
@@ -95,17 +39,12 @@ struct Persona {
 };
 static_assert(sizeof(Persona) == 40, "Persona debe ocupar exactamente 40 bytes");
 
-/** Registro de Curso -- 40 bytes fijos en disco. */
 struct Curso {
     int32_t idCurso;
     int32_t idPersona;
     char    nombreCurso[32];
 };
 static_assert(sizeof(Curso) == 40, "Curso debe ocupar exactamente 40 bytes");
-
-// ---------------------------------------------------------------------------
-// Serializacion / deserializacion
-// ---------------------------------------------------------------------------
 
 static vector<uint8_t> SerializePersona(const Persona& p) {
     vector<uint8_t> buf(sizeof(Persona), 0);
@@ -143,30 +82,22 @@ static Curso DeserializeCurso(const vector<uint8_t>& buf) {
     return c;
 }
 
-// ---------------------------------------------------------------------------
-// Definiciones de columnas de Persona (para ProjectOperator)
-// ---------------------------------------------------------------------------
 static const ColumnDef COL_ID     = { "id",     0,  4  };
 static const ColumnDef COL_EDAD   = { "edad",   4,  4  };
 static const ColumnDef COL_NOMBRE = { "nombre", 8,  32 };
 
-// ===========================================================================
-// SECCION B: Helpers de presentacion en consola
-// ===========================================================================
 
-/** Ancho de linea separadora. */
 static constexpr int LINE_WIDTH = 65;
 
-/** Imprime una linea de caracteres del ancho estandar. */
+
 static void PrintSeparator(char c = '=') {
     cout << string(LINE_WIDTH, c) << "\n";
 }
 
-/** Imprime el encabezado de una seccion numerada. */
+
 static void PrintSection(int num, const string& title) {
     cout << "\n";
     PrintSeparator();
-    /* Centra el texto en la linea */
     string label = "  [" + to_string(num) + "] " + title + "  ";
     int padding  = (LINE_WIDTH - static_cast<int>(label.size())) / 2;
     if (padding < 0) padding = 0;
@@ -174,26 +105,16 @@ static void PrintSection(int num, const string& title) {
     PrintSeparator();
 }
 
-/** Imprime el estado de un sub-test. */
+
 static void PrintStep(const string& msg) {
     cout << "  >> " << msg << "\n";
 }
 
-/** Imprime OK / FAIL con prefijo ASCII. */
 static void PrintResult(const string& label, bool ok) {
     cout << "  " << (ok ? "[OK]   " : "[FAIL] ") << label << "\n";
 }
 
-// ===========================================================================
-// SECCION C: Helper de insercion de registros en tabla heap + indice
-// ===========================================================================
 
-/**
- * Inserta una Persona en la tabla heap (dataSM / dataBM) y registra
- * su RID en el B+ Tree (que usa idxBM / idxSM por separado).
- *
- * Retorna true si la insercion fue exitosa.
- */
 static bool InsertarPersona(StorageManager& dataSM,
                              BufferManager&  dataBM,
                              BPlusTree&      tree,
@@ -204,7 +125,6 @@ static bool InsertarPersona(StorageManager& dataSM,
     int numPages = dataSM.GetNumPages();
     int pageId   = -1;
 
-    /* Buscar una pagina de datos existente con espacio libre */
     for (int i = 0; i < numPages; i++) {
         auto* frame = dataBM.GetPage(i);
         if (frame->page->InsertRecord(datos)) {
@@ -217,7 +137,6 @@ static bool InsertarPersona(StorageManager& dataSM,
         dataBM.ReleasePage(i, false);
     }
 
-    /* Si no cabe en ninguna existente, crear nueva pagina */
     pageId = numPages;
     auto* frame = dataBM.GetPage(pageId);
     bool ok = frame->page->InsertRecord(datos);
@@ -231,9 +150,7 @@ static bool InsertarPersona(StorageManager& dataSM,
     return true;
 }
 
-/**
- * Inserta un Curso en la tabla heap (sin indice).
- */
+
 static bool InsertarCurso(StorageManager& dataSM,
                            BufferManager&  dataBM,
                            const Curso&    c)
@@ -262,17 +179,9 @@ static bool InsertarCurso(StorageManager& dataSM,
     return true;
 }
 
-// ===========================================================================
-// SECCION D: Funciones de benchmark (medicion de tiempo)
-// ===========================================================================
-
-/**
- * Mide el tiempo de un Scan secuencial completo (recorre todos los registros).
- * Retorna el numero de registros recorridos y el tiempo en ms.
- */
 struct BenchResult {
-    double  ms      = 0.0;  /* Tiempo transcurrido en milisegundos */
-    int     count   = 0;    /* Registros encontrados / recorridos  */
+    double  ms      = 0.0;
+    int     count   = 0;
 };
 
 static BenchResult MedirScanCompleto(StorageManager& dataSM,
@@ -309,13 +218,6 @@ static BenchResult MedirIndexSearch(BPlusTree& tree, int key,
     return { ms, cnt };
 }
 
-// ===========================================================================
-// SECCION E: Modulos de prueba individuales
-// ===========================================================================
-
-// ---------------------------------------------------------------------------
-// [2] Prueba de Persistencia
-// ---------------------------------------------------------------------------
 static bool TestPersistencia() {
     PrintSection(2, "PERSISTENCIA - Escritura y relectura desde disco");
 
@@ -332,7 +234,6 @@ static bool TestPersistencia() {
         {40, "Alumno 40: Lucia, Nota: 20"}
     };
 
-    /* ---- FASE 1: Insertar y persistir ---- */
     PrintStep("FASE 1 - Creando base de datos y escribiendo registros...");
     {
         StorageManager dataSM(DB);
@@ -342,10 +243,8 @@ static bool TestPersistencia() {
         BufferManager  idxBM(10, &idxSM);
         BPlusTree      tree(&idxBM, &idxSM, 3, 3);
 
-        /* Pagina 0 es del arbol; usamos paginas de datos desde la 1 */
         int dataPageId = 1;
 
-        /* Insertar registros de texto en paginas de datos */
         vector<pair<int, RID>> indexed;
         for (const auto& [key, text] : studentRecords) {
             vector<uint8_t> rec(text.begin(), text.end());
@@ -360,9 +259,8 @@ static bool TestPersistencia() {
             dataBM.ReleasePage(dataPageId, true);
             indexed.push_back({key, RID{dataPageId, slotId}});
         }
-        dataBM.Flush();   /* Asegurar que paginas de datos esten en disco */
+        dataBM.Flush();
 
-        /* Insertar en el arbol B+ */
         for (const auto& [key, rid] : indexed) {
             tree.Insert(key, rid);
         }
@@ -373,7 +271,6 @@ static bool TestPersistencia() {
                   "  |  Paginas de indice: " + to_string(idxSM.GetNumPages()));
     }
 
-    /* ---- FASE 2: Reabrir y verificar ---- */
     PrintStep("FASE 2 - Reabriendo desde disco y validando contenido...");
     bool allOk = true;
     {
@@ -409,16 +306,12 @@ static bool TestPersistencia() {
     return allOk;
 }
 
-// ---------------------------------------------------------------------------
-// [3] Prueba del Buffer Manager (LRU)
-// ---------------------------------------------------------------------------
 static bool TestBufferManager() {
     PrintSection(3, "BUFFER MANAGER - Politica LRU (Least Recently Used)");
 
     const string DB = "demo_buffer.db";
     remove(DB.c_str());
 
-    /* Pre-crear 10 paginas en disco */
     {
         StorageManager sm(DB);
         vector<uint8_t> empty(PAGE_SIZE, 0);
@@ -426,7 +319,6 @@ static bool TestBufferManager() {
     }
 
     StorageManager sm(DB);
-    /* Buffer pool con capacidad 3 -> fuerza reemplazos frecuentes */
     BufferManager bm(3, &sm);
 
     PrintStep("Accediendo a paginas 0, 1, 2 (llenando el pool)...");
@@ -439,7 +331,6 @@ static bool TestBufferManager() {
     bm.GetPage(4); bm.ReleasePage(4, false);
     bm.GetPage(5); bm.ReleasePage(5, false);
 
-    /* Reutilizacion: hit */
     PrintStep("Reutilizando paginas 3, 4, 5 (deben ser HIT)...");
     bm.ResetStats();
     bm.GetPage(3); bm.ReleasePage(3, false);
@@ -448,19 +339,15 @@ static bool TestBufferManager() {
     int hits3   = bm.GetHitCount();
     int misses3 = bm.GetMissCount();
 
-    /* Acceder a una evicted: miss */
     PrintStep("Accediendo a pagina 0 (evicted, debe ser MISS)...");
     bm.ResetStats();
     bm.GetPage(0); bm.ReleasePage(0, false);
     int missEvicted = bm.GetMissCount();
 
-    /* Estadisticas globales finales */
     bm.ResetStats();
-    /* Calentamiento para llenar buffer antes del hit-rate test */
     for (int i = 1; i <= 5; i++) { bm.GetPage(i % 3 + 3); bm.ReleasePage(i % 3 + 3, false); }
     for (int i = 1; i <= 5; i++) { bm.GetPage(i % 3 + 3); bm.ReleasePage(i % 3 + 3, false); }
 
-    /* Mostrar resumen */
     cout << "\n";
     PrintSeparator('-');
     cout << "  Buffer Manager - Estadisticas:\n";
@@ -480,15 +367,11 @@ static bool TestBufferManager() {
     return lruOk && missOk;
 }
 
-// ---------------------------------------------------------------------------
-// [4] Prueba de Insercion en B+ Tree (1 000 claves)
-// ---------------------------------------------------------------------------
 static bool TestBPlusInsercion(StorageManager& idxSM, BufferManager& idxBM,
                                 BPlusTree& tree, int N = 1000)
 {
     PrintSection(4, "B+ TREE - Insercion de " + to_string(N) + " claves");
 
-    /* Generar claves aleatorias deterministas */
     vector<int> keys;
     keys.reserve(N);
     for (int i = 1; i <= N; i++) keys.push_back(i);
@@ -499,7 +382,6 @@ static bool TestBPlusInsercion(StorageManager& idxSM, BufferManager& idxBM,
 
     PrintStep("Insertando " + to_string(N) + " claves...");
 
-    /* Insertar con barra de progreso simple */
     const int STEP = N / 10;
     for (int idx = 0; idx < N; idx++) {
         int k = keys[idx];
@@ -512,7 +394,6 @@ static bool TestBPlusInsercion(StorageManager& idxSM, BufferManager& idxBM,
     }
     idxBM.Flush();
 
-    /* Verificar un sample de 20 claves */
     PrintStep("Verificando muestra de 20 claves...");
     bool allFound = true;
     vector<int> sample = {1, 50, 100, 200, 300, 400, 500, 600, 700, 800,
@@ -530,13 +411,9 @@ static bool TestBPlusInsercion(StorageManager& idxSM, BufferManager& idxBM,
     return allFound;
 }
 
-// ---------------------------------------------------------------------------
-// [5] Prueba de Busqueda en B+ Tree
-// ---------------------------------------------------------------------------
 static bool TestBPlusBusqueda(BPlusTree& tree, int N) {
     PrintSection(5, "B+ TREE - Busqueda de claves existentes e inexistentes");
 
-    /* Claves que deben existir */
     vector<int> existentes = { 1, 100, 250, 500, 750, 999, N };
     bool allFound = true;
 
@@ -552,7 +429,6 @@ static bool TestBPlusBusqueda(BPlusTree& tree, int N) {
                     : "NO ENCONTRADA  [ERROR]") << "\n";
     }
 
-    /* Claves inexistentes */
     vector<int> inexistentes = { 0, N + 1, N + 100, 999999, -1 };
     bool noneFound = true;
 
@@ -570,9 +446,6 @@ static bool TestBPlusBusqueda(BPlusTree& tree, int N) {
     return allFound && noneFound;
 }
 
-// ---------------------------------------------------------------------------
-// [6] Prueba de Eliminacion en B+ Tree
-// ---------------------------------------------------------------------------
 static bool TestBPlusEliminacion(BPlusTree& tree, int N) {
     PrintSection(6, "B+ TREE - Eliminacion de claves");
 
@@ -597,7 +470,6 @@ static bool TestBPlusEliminacion(BPlusTree& tree, int N) {
              << (ok ? "NOT FOUND   [OK]" : "AUN EXISTE  [ERROR]") << "\n";
     }
 
-    /* Verificar que claves no eliminadas siguen existiendo */
     vector<int> surviving = { 10, 200, 300, 600, 900 };
     bool survivorsOk = true;
     cout << "\n  Claves restantes (no eliminadas, deben existir):\n";
@@ -615,9 +487,6 @@ static bool TestBPlusEliminacion(BPlusTree& tree, int N) {
     return allDeleted && survivorsOk;
 }
 
-// ---------------------------------------------------------------------------
-// [7] Prueba del ScanOperator
-// ---------------------------------------------------------------------------
 static bool TestScan(StorageManager& dataSM, BufferManager& dataBM,
                      int numEsperados)
 {
@@ -639,10 +508,6 @@ static bool TestScan(StorageManager& dataSM, BufferManager& dataBM,
     PrintResult("ScanOperator recorrio todos los registros", ok);
     return ok;
 }
-
-// ---------------------------------------------------------------------------
-// [8] Prueba del SelectOperator
-// ---------------------------------------------------------------------------
 static bool TestSelect(StorageManager& dataSM, BufferManager& dataBM) {
     PrintSection(8, "SELECT OPERATOR - Filtro: edad > 18");
 
@@ -676,14 +541,10 @@ static bool TestSelect(StorageManager& dataSM, BufferManager& dataBM) {
     return ok;
 }
 
-// ---------------------------------------------------------------------------
-// [9] Prueba del ProjectOperator
-// ---------------------------------------------------------------------------
 static bool TestProject(StorageManager& dataSM, BufferManager& dataBM) {
     PrintSection(9, "PROJECT OPERATOR - Proyeccion: id + nombre");
 
     ScanOperator scan(&dataBM, &dataSM);
-    /* Proyectar solo id (4 bytes) y nombre (32 bytes) = 36 bytes */
     ProjectOperator project(&scan, { COL_ID, COL_NOMBRE });
 
     project.Open();
@@ -691,7 +552,6 @@ static bool TestProject(StorageManager& dataSM, BufferManager& dataBM) {
     bool sizesOk = true;
     Record rec;
     while (project.Next(rec)) {
-        /* Tamano proyectado debe ser exactamente 4 + 32 = 36 bytes */
         if (rec.data.size() != 36) { sizesOk = false; }
         if (rec.data.size() == 36) {
             int32_t id = 0;
@@ -710,9 +570,6 @@ static bool TestProject(StorageManager& dataSM, BufferManager& dataBM) {
     return ok;
 }
 
-// ---------------------------------------------------------------------------
-// [10] Prueba del NestedLoopJoinOperator
-// ---------------------------------------------------------------------------
 static bool TestNestedLoopJoin(StorageManager& dataSM1, BufferManager& dataBM1,
                                 StorageManager& dataSM2, BufferManager& dataBM2,
                                 int expectedJoins)
@@ -774,9 +631,6 @@ static bool TestNestedLoopJoin(StorageManager& dataSM1, BufferManager& dataBM1,
     return ok;
 }
 
-// ---------------------------------------------------------------------------
-// [11] Prueba del IndexScanOperator
-// ---------------------------------------------------------------------------
 static bool TestIndexScan(BPlusTree& tree, BufferManager& dataBM,
                            const vector<Persona>& personas)
 {
@@ -784,7 +638,6 @@ static bool TestIndexScan(BPlusTree& tree, BufferManager& dataBM,
 
     bool allOk = true;
 
-    /* Claves a probar (existentes e inexistentes) */
     struct SearchCase { int key; bool shouldExist; };
     vector<SearchCase> cases = {
         { personas[0].id, true  },
@@ -818,9 +671,6 @@ static bool TestIndexScan(BPlusTree& tree, BufferManager& dataBM,
     return allOk;
 }
 
-// ---------------------------------------------------------------------------
-// [12] Prueba del QueryExecutor
-// ---------------------------------------------------------------------------
 static bool TestQueryExecutor(StorageManager& dataSM, BufferManager& dataBM,
                                StorageManager& idxSM,  BufferManager& idxBM,
                                BPlusTree& tree,
@@ -829,9 +679,8 @@ static bool TestQueryExecutor(StorageManager& dataSM, BufferManager& dataBM,
     PrintSection(12, "QUERY EXECUTOR - Seleccion automatica de estrategia");
 
     bool allOk = true;
-    int targetId = personas[3].id;  /* Clave conocida */
+    int targetId = personas[3].id;
 
-    /* --- Consulta con indice disponible (debe elegir IndexScan) --- */
     cout << "  Consulta A: EqId=" << targetId
          << "  (QueryExecutor con B+ Tree disponible)\n";
     {
@@ -839,7 +688,6 @@ static bool TestQueryExecutor(StorageManager& dataSM, BufferManager& dataBM,
         QueryPlan plan;
         plan.predicate = Predicate::EqId(targetId);
 
-        /* Explain muestra la estrategia elegida */
         cout << "  ";
         qe.Explain(plan);
 
@@ -863,10 +711,8 @@ static bool TestQueryExecutor(StorageManager& dataSM, BufferManager& dataBM,
 
     cout << "\n";
 
-    /* --- Consulta sin indice (predicado general -> Scan secuencial) --- */
     cout << "  Consulta B: predicado GENERAL  (sin indice -> Scan secuencial)\n";
     {
-        /* Ejecutor sin arbol */
         QueryExecutor qeNoIdx(&dataBM, &dataSM, nullptr);
         QueryPlan plan;
         plan.predicate = Predicate::General([&](const Record& r) {
@@ -891,9 +737,6 @@ static bool TestQueryExecutor(StorageManager& dataSM, BufferManager& dataBM,
     return allOk;
 }
 
-// ---------------------------------------------------------------------------
-// [13] Benchmark Final -- 10 000 / 50 000 / 100 000 registros
-// ---------------------------------------------------------------------------
 static bool TestBenchmark() {
     PrintSection(13, "BENCHMARK FINAL - Scan Secuencial vs. B+ Tree Index");
 
@@ -907,7 +750,6 @@ static bool TestBenchmark() {
     vector<DatasetResult> results;
     vector<int> sizes = { 10000, 50000, 100000 };
 
-    /* Parametros del arbol: orden mayor para conjuntos grandes */
     const int ORDER = 50;
 
     for (int N : sizes) {
@@ -918,7 +760,6 @@ static bool TestBenchmark() {
         remove(DB.c_str());
         remove(IDX.c_str());
 
-        /* ------- Insercion ------- */
         {
             StorageManager dataSM(DB);
             BufferManager  dataBM(64, &dataSM);
@@ -966,7 +807,6 @@ static bool TestBenchmark() {
                  << idxSM.GetNumPages()  << " pags. indice)\n";
         }
 
-        /* ------- Medicion ------- */
         {
             StorageManager dataSM(DB);
             BufferManager  dataBM(64, &dataSM);
@@ -975,10 +815,8 @@ static bool TestBenchmark() {
             BufferManager  idxBM(64, &idxSM);
             BPlusTree      tree(&idxBM, &idxSM, ORDER, ORDER);
 
-            /* Clave de busqueda al final del dataset (peor caso para Scan) */
             int searchKey = N;
 
-            /* Calentamiento */
             {
                 ScanOperator sc(&dataBM, &dataSM); sc.Open();
                 Record r; while (sc.Next(r)) {}; sc.Close();
@@ -987,11 +825,8 @@ static bool TestBenchmark() {
                 IndexScanOperator is(&tree, &dataBM, searchKey);
                 is.Open(); Record r; is.Next(r); is.Close();
             }
-
-            /* Medicion Scan secuencial */
             BenchResult scanR = MedirScanCompleto(dataSM, dataBM);
 
-            /* Medicion Index Scan */
             BenchResult idxR  = MedirIndexSearch(tree, searchKey, dataBM);
 
             double speedup = (idxR.ms > 0.0)
@@ -1008,12 +843,9 @@ static bool TestBenchmark() {
             results.push_back({ N, scanR.ms, idxR.ms, speedup });
         }
 
-        /* Limpiar archivos temporales del benchmark */
         remove(DB.c_str());
         remove(IDX.c_str());
     }
-
-    /* ------- Tabla resumen ------- */
     cout << "\n";
     PrintSeparator('=');
     cout << "  TABLA RESUMEN - Scan vs. Index\n";
@@ -1040,14 +872,8 @@ static bool TestBenchmark() {
     return ok;
 }
 
-// ===========================================================================
-// SECCION F: main -- Orquestador de la demo completa
-// ===========================================================================
 
 int main() {
-    /* =========================================================================
-     * [1] INICIALIZACION
-     * ========================================================================= */
     PrintSeparator('*');
     cout << "\n";
     cout << "  +----------------------------------------------------------+\n";
@@ -1058,19 +884,16 @@ int main() {
     cout << "\n";
     PrintSeparator('*');
 
-    /* Nombres de archivos de prueba */
     const string DATA_FILE   = "demo_main_data.db";
     const string IDX_FILE    = "demo_main_idx.db";
     const string CURSOS_FILE = "demo_main_cursos.db";
 
-    /* Limpiar archivos anteriores */
     remove(DATA_FILE.c_str());
     remove(IDX_FILE.c_str());
     remove(CURSOS_FILE.c_str());
 
     PrintSection(1, "INICIALIZACION - Creacion de componentes base");
 
-    /* --- Datos de prueba: Personas --- */
     vector<Persona> personas = {
         {  1, 15, "Ana"       },
         {  2, 22, "Bruno"     },
@@ -1084,7 +907,6 @@ int main() {
         { 10, 19, "Julia"     },
     };
 
-    /* --- Datos de prueba: Cursos --- */
     vector<Curso> cursos = {
         { 101, 1, "Natacion" },
         { 102, 2, "Futbol"   },
@@ -1092,9 +914,7 @@ int main() {
         { 104, 4, "Voley"    },
         { 105, 8, "Karate"   },
     };
-    /* expectedJoins = 5 (un curso por persona: Ana, Bruno x2, Diana, Helena) */
 
-    /* ---- Crear StorageManagers ---- */
     StorageManager dataSM(DATA_FILE);
     BufferManager  dataBM(20, &dataSM);
 
@@ -1105,7 +925,6 @@ int main() {
     StorageManager cursosSM(CURSOS_FILE);
     BufferManager  cursosBM(10, &cursosSM);
 
-    /* Insertar personas + construir indice */
     PrintStep("Insertando " + to_string(personas.size()) +
               " personas en la tabla y construyendo indice B+...");
     for (const auto& p : personas) {
@@ -1115,7 +934,6 @@ int main() {
     dataBM.Flush();
     idxBM.Flush();
 
-    /* Insertar cursos (sin indice) */
     PrintStep("Insertando " + to_string(cursos.size()) + " cursos...");
     for (const auto& c : cursos) {
         bool ok = InsertarCurso(cursosSM, cursosBM, c);
@@ -1127,23 +945,13 @@ int main() {
     cout << "  Paginas de indice      : " << idxSM.GetNumPages()    << "\n";
     cout << "  Paginas de cursos      : " << cursosSM.GetNumPages() << "\n";
     PrintResult("Inicializacion completada", true);
-
-    /* =========================================================================
-     * Ejecutar todas las secciones de prueba
-     * ========================================================================= */
-
-    /* Tabla de resultados para el resumen final */
     struct SectionResult { string name; bool ok; };
     vector<SectionResult> report;
 
-    /* [2] Persistencia */
     report.push_back({ "Persistencia", TestPersistencia() });
 
-    /* [3] Buffer Manager LRU */
     report.push_back({ "Buffer Manager (LRU)", TestBufferManager() });
 
-    /* Arbol B+ independiente para las pruebas [4..6]
-     * (Evitamos colisionar con el arbol principal que ya inserto personas) */
     {
         const string IDX2 = "demo_bplus_test.db";
         remove(IDX2.c_str());
@@ -1152,50 +960,38 @@ int main() {
         BPlusTree      tree2(&idxBM2, &idxSM2, 7, 7);
         const int BPLUS_N = 1000;
 
-        /* [4] Insercion */
         report.push_back({ "B+ Tree Insercion",
             TestBPlusInsercion(idxSM2, idxBM2, tree2, BPLUS_N) });
 
-        /* [5] Busqueda */
         report.push_back({ "B+ Tree Busqueda",
             TestBPlusBusqueda(tree2, BPLUS_N) });
 
-        /* [6] Eliminacion */
         report.push_back({ "B+ Tree Eliminacion",
             TestBPlusEliminacion(tree2, BPLUS_N) });
 
         remove(IDX2.c_str());
     }
 
-    /* [7] Scan Operator */
     report.push_back({ "Scan Operator",
         TestScan(dataSM, dataBM, static_cast<int>(personas.size())) });
 
-    /* [8] Select Operator */
     report.push_back({ "Select Operator", TestSelect(dataSM, dataBM) });
 
-    /* [9] Project Operator */
     report.push_back({ "Project Operator", TestProject(dataSM, dataBM) });
 
-    /* [10] Nested Loop Join */
     report.push_back({ "Nested Loop Join",
         TestNestedLoopJoin(dataSM, dataBM, cursosSM, cursosBM,
                            static_cast<int>(cursos.size())) });
 
-    /* [11] Index Scan Operator */
     report.push_back({ "Index Scan Operator",
         TestIndexScan(tree, dataBM, personas) });
 
-    /* [12] Query Executor */
     report.push_back({ "Query Executor",
         TestQueryExecutor(dataSM, dataBM, idxSM, idxBM, tree, personas) });
 
-    /* [13] Benchmark Final */
     report.push_back({ "Benchmark Final", TestBenchmark() });
 
-    /* =========================================================================
-     * [14] RESUMEN FINAL
-     * ========================================================================= */
+
     PrintSection(14, "RESUMEN FINAL - Estado de todos los componentes");
 
     bool globalOk = true;
@@ -1221,8 +1017,6 @@ int main() {
     }
     PrintSeparator('=');
     cout << "\n";
-
-    /* Limpiar archivos de la demo principal */
     remove(DATA_FILE.c_str());
     remove(IDX_FILE.c_str());
     remove(CURSOS_FILE.c_str());
